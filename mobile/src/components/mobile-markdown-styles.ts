@@ -100,7 +100,8 @@ export const styles = createThemedStyles(() =>
       alignSelf: 'stretch',
       minWidth: 0,
       borderWidth: 1,
-      borderColor: colors.borderSubtle,
+      // A 50% muted tone stays visible against the raised header, including antialiased corners.
+      borderColor: `${colors.textMuted}80`,
       borderRadius: radii.input,
       overflow: 'hidden',
       backgroundColor: colors.bgPanel
@@ -111,7 +112,7 @@ export const styles = createThemedStyles(() =>
     tableCell: {
       borderRightWidth: 1,
       borderBottomWidth: 1,
-      borderColor: colors.borderSubtle,
+      borderColor: `${colors.textMuted}80`,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm
     },
