@@ -14,7 +14,7 @@ import {
   scopeCwdStampOf,
   setSessionParseCacheColdTier,
   type PersistedSessionParseCacheEntry,
-  type SessionScopeCwdLookup,
+  type SessionScopeCwdRead,
   type SessionScopeCwdStamp
 } from './session-parse-cache-store'
 
@@ -172,8 +172,13 @@ function readRow(path: string): PersistedSessionParseCacheEntry | undefined {
   return pendingWrites.get(path) ?? openedDatabase()?.read(path)
 }
 
-function readScopeCwds(paths: readonly string[]): Map<string, SessionScopeCwdLookup> {
-  const found = openedDatabase()?.readScopeCwds(paths) ?? new Map<string, SessionScopeCwdLookup>()
+function readScopeCwds(paths: readonly string[]): SessionScopeCwdRead {
+  const result: SessionScopeCwdRead = openedDatabase()?.readScopeCwds(paths) ?? {
+    found: new Map(),
+    parsed: false,
+    read: false
+  }
+  const found = result.found
   for (const path of paths) {
     const row = pendingWrites.get(path)
     const read = pendingScopeCwds.get(path)
@@ -185,7 +190,7 @@ function readScopeCwds(paths: readonly string[]): Map<string, SessionScopeCwdLoo
       })
     }
   }
-  return found
+  return result
 }
 
 function queueScopeCwdWrite(path: string, stamp: SessionScopeCwdStamp): void {

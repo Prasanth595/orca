@@ -83,6 +83,8 @@ import {
 import {
   getSessionParseCacheEntry,
   lookupSessionScopeCwds,
+  resolveSessionScopeCwd,
+  scopeCwdStampOf,
   peekSessionParseCacheEntry,
   type PersistedSessionParseCacheEntry,
   setSessionParseCacheColdTier
@@ -616,6 +618,16 @@ it('recovers a cold Cursor session when its sidecar appears without a transcript
   const read = vi.fn((key: string) => rows.get(key))
   const tier = {
     read,
+    readScopeCwds: (paths: readonly string[]) => ({
+      found: new Map(
+        paths.flatMap((key) => {
+          const row = rows.get(key)
+          return row === undefined ? [] : [[key, { parsed: scopeCwdStampOf(row) }] as const]
+        })
+      ),
+      parsed: true,
+      read: true
+    }),
     stored: (key: string, row: PersistedSessionParseCacheEntry) => rows.set(key, row),
     deleted: (key: string) => rows.delete(key)
   }
@@ -667,7 +679,8 @@ it('lists a Cursor session once meta.json names the scope after a scan stored it
       scopePaths: ['/repo']
     })
   expect((await scan()).sessions.some((row) => row.filePath === path)).toBe(false)
-  expect(lookupSessionScopeCwds([path]).get(path)).toMatchObject({ read: { cwd: null } })
+  lookupSessionScopeCwds([path])
+  expect(resolveSessionScopeCwd(path, () => true)).toEqual({ cwd: null })
   await writeChatMeta(cursorHome, 'workspace-hash', 'chat-1', { cwd: '/repo' })
   const found = (await scan()).sessions.filter((row) => row.filePath === path)
   expect(found.map((row) => row.cwd)).toEqual(['/repo'])

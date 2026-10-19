@@ -22,22 +22,28 @@ CREATE INDEX IF NOT EXISTS scope_cwds_seen_at ON scope_cwds(seen_at);
 `
 // Keeps each IN list well under SQLite's bound-parameter limit.
 const SCOPE_LOOKUP_CHUNK = 500
+const VALID_SESSION =
+  "CASE WHEN json_valid(session) THEN json_type(session) IN ('object','null') ELSE 0 END"
 
 export function readScopeCwdRows(
   db: SyncDatabase,
-  paths: readonly string[]
+  paths: readonly string[],
+  channel: 'parsed' | 'read'
 ): Map<string, SessionScopeCwdLookup> {
   const found = new Map<string, SessionScopeCwdLookup>()
   for (let start = 0; start < paths.length; start += SCOPE_LOOKUP_CHUNK) {
     const chunk = paths.slice(start, start + SCOPE_LOOKUP_CHUNK)
     const marks = chunk.map(() => '?').join(',')
     for (const [table, key, cwdColumn] of [
-      ['rows', 'parsed', "json_extract(session, '$.cwd')"],
+      ['rows', 'parsed', `CASE WHEN ${VALID_SESSION} THEN json_extract(session, '$.cwd') END`],
       ['scope_cwds', 'read', 'cwd']
     ] as const) {
+      if (key !== channel) {
+        continue
+      }
       const rows = db
         .prepare(
-          `SELECT path, mtime_ms, size_bytes, platform, sidecar, ${cwdColumn} AS cwd FROM ${table} WHERE path IN (${marks})`
+          `SELECT path, mtime_ms, size_bytes, platform, sidecar, ${cwdColumn} AS cwd FROM ${table} WHERE path IN (${marks}) ${key === 'parsed' ? `AND (${VALID_SESSION})` : ''}`
         )
         .all(...chunk)
       for (const row of rows) {
@@ -102,8 +108,13 @@ function parseScopeCwdStamp(row: Record<string, unknown>): SessionScopeCwdStamp 
   ) {
     return null
   }
-  const sidecar =
-    typeof row.sidecar === 'string' ? parsePersistedSidecar(JSON.parse(row.sidecar)) : undefined
+  let sidecar: ReturnType<typeof parsePersistedSidecar>
+  try {
+    sidecar =
+      typeof row.sidecar === 'string' ? parsePersistedSidecar(JSON.parse(row.sidecar)) : undefined
+  } catch {
+    return null
+  }
   return {
     mtimeMs,
     sizeBytes,

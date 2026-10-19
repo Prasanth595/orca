@@ -78,8 +78,14 @@ export class SessionParseCacheDatabase {
   }
 
   /** Each path's parse-row cwd and stored scope cwd, without decoding whole sessions. */
-  readScopeCwds(paths: readonly string[]): Map<string, SessionScopeCwdLookup> {
-    return this.run((db) => readScopeCwdRows(db, paths), new Map())
+  readScopeCwds(paths: readonly string[]) {
+    const parsed = this.run((db) => readScopeCwdRows(db, paths, 'parsed'), undefined)
+    const read = this.run((db) => readScopeCwdRows(db, paths, 'read'), undefined)
+    const found = parsed ?? new Map<string, SessionScopeCwdLookup>()
+    for (const [path, row] of read ?? []) {
+      found.set(path, { ...found.get(path), ...row })
+    }
+    return { found, parsed: parsed !== undefined, read: read !== undefined }
   }
 
   writeScopeCwds(rows: Iterable<[string, SessionScopeCwdStamp]>, seenAt: number): void {
@@ -151,9 +157,8 @@ export class SessionParseCacheDatabase {
         ['rows', 'scope_cwds']
           .map((table) =>
             Number(
-              db
-                .prepare(`DELETE FROM ${table} WHERE seen_at < ? AND path GLOB ?`)
-                .run(cutoff, glob).changes
+              db.prepare(`DELETE FROM ${table} WHERE seen_at < ? AND path GLOB ?`).run(cutoff, glob)
+                .changes
             )
           )
           .some((changes) => changes > 0),
@@ -162,13 +167,10 @@ export class SessionParseCacheDatabase {
   }
 
   markSeen(path: string, seenAt: number): void {
-    this.run(
-      (db) => {
-        db.prepare('UPDATE rows SET seen_at = ? WHERE path = ?').run(seenAt, path)
-        db.prepare('UPDATE scope_cwds SET seen_at = ? WHERE path = ?').run(seenAt, path)
-      },
-      undefined
-    )
+    this.run((db) => {
+      db.prepare('UPDATE rows SET seen_at = ? WHERE path = ?').run(seenAt, path)
+      db.prepare('UPDATE scope_cwds SET seen_at = ? WHERE path = ?').run(seenAt, path)
+    }, undefined)
   }
 
   /** Hands freed pages back to the file system after deletes. */

@@ -6,9 +6,10 @@ import { yieldToEventLoop } from '../../shared/event-loop-yield'
 import { throwIfAiVaultScanCancelled } from './ai-vault-scan-cancellation'
 import {
   lookupSessionScopeCwds,
+  clearSessionScopeCwdKnowledge,
   pruneSessionScopeCwds,
+  resolveSessionScopeCwd,
   storeSessionScopeCwd,
-  type SessionScopeCwdLookup,
   type SessionScopeCwdStamp
 } from './session-parse-cache-store'
 import type { AntigravityWorkspaceResolver } from './session-scanner-antigravity-history'
@@ -66,7 +67,7 @@ export async function scanInScopeSessions(args: ScopeScanArgs): Promise<AiVaultS
     })
     candidates.push(...files.map((file) => ({ agent: layout.agent, file, codexHome: null })))
   }
-  const walked = await walkInScopeSessions(args, scopePaths)
+  const walked = await walkInScopeSessions(args, scopePaths).finally(clearSessionScopeCwdKnowledge)
   if (candidates.length === 0) {
     return walked
   }
@@ -96,7 +97,7 @@ async function walkInScopeSessions(
   const signal = args.options.signal
   const inScope = createAiVaultScopeCwdMatcher(scopePaths)
   const candidates = walkCandidates(args, scopePaths)
-  const known = await lookupScopeCwds(candidates, signal)
+  await lookupScopeCwds(candidates, signal)
   const sessions = await parseSessionCandidates({
     candidates,
     limit: args.limit,
@@ -107,8 +108,7 @@ async function walkInScopeSessions(
     antigravityWorkspaceResolver: args.antigravityWorkspaceResolver,
     signal,
     listed: false,
-    selectCandidate: (candidate) =>
-      mayBeInScope(candidate, known.get(candidate.file.path), inScope, args.platform, signal),
+    selectCandidate: (candidate) => mayBeInScope(candidate, inScope, args.platform, signal),
     admitSession: (session) => inScope(session.cwd, session.filePath)
   })
   return sessions
@@ -152,22 +152,16 @@ const SCOPE_LOOKUP_BATCH = 500
 async function lookupScopeCwds(
   candidates: readonly SessionFileCandidate[],
   signal: AbortSignal | undefined
-): Promise<Map<string, SessionScopeCwdLookup>> {
-  const known = new Map<string, SessionScopeCwdLookup>()
+): Promise<void> {
   // The Antigravity fold has no cwd until the per-scan history join runs.
   const paths = candidates
     .filter((candidate) => !candidate.antigravityHistoryPath)
     .map((candidate) => candidate.file.path)
   for (let start = 0; start < paths.length; start += SCOPE_LOOKUP_BATCH) {
     throwIfAiVaultScanCancelled(signal)
-    for (const [path, lookup] of lookupSessionScopeCwds(
-      paths.slice(start, start + SCOPE_LOOKUP_BATCH)
-    )) {
-      known.set(path, lookup)
-    }
+    lookupSessionScopeCwds(paths.slice(start, start + SCOPE_LOOKUP_BATCH))
     await yieldToEventLoop()
   }
-  return known
 }
 
 /**
@@ -177,34 +171,33 @@ async function lookupScopeCwds(
  */
 async function mayBeInScope(
   candidate: SessionFileCandidate,
-  known: SessionScopeCwdLookup | undefined,
   inScope: ReturnType<typeof createAiVaultScopeCwdMatcher>,
   platform: NodeJS.Platform,
   signal: AbortSignal | undefined
 ): Promise<boolean> {
   const { file } = candidate
-  for (const stamp of [known?.parsed, known?.read]) {
-    if (stamp && stampMatchesFile(stamp, file, platform)) {
-      return stamp.cwd !== null && inScope(stamp.cwd, file.path)
-    }
+  if (candidate.antigravityHistoryPath) {
+    return true
   }
+  const resolve = () =>
+    resolveSessionScopeCwd(file.path, (stamp) => stampMatchesFile(stamp, file, platform))
+  let known = resolve()
   const source = AI_VAULT_SCOPE_CWD_SOURCES[candidate.agent]
-  if (source.kind !== 'read' || candidate.antigravityHistoryPath) {
-    return true
+  if (known === 'read' && source.kind === 'read') {
+    const read = await source.readCwd(candidate, signal)
+    throwIfAiVaultScanCancelled(signal)
+    if (read !== null) {
+      storeSessionScopeCwd(file.path, {
+        mtimeMs: file.mtimeMs,
+        sizeBytes: file.sizeBytes ?? null,
+        platform,
+        cwd: read.cwd,
+        ...(file.sidecar === undefined ? {} : { sidecar: file.sidecar })
+      })
+    }
+    known = resolve()
   }
-  const read = await source.readCwd(candidate, signal)
-  if (read === null) {
-    return true
-  }
-  throwIfAiVaultScanCancelled(signal)
-  storeSessionScopeCwd(file.path, {
-    mtimeMs: file.mtimeMs,
-    sizeBytes: file.sizeBytes ?? null,
-    platform,
-    cwd: read.cwd,
-    ...(file.sidecar === undefined ? {} : { sidecar: file.sidecar })
-  })
-  return read.cwd !== null && inScope(read.cwd, file.path)
+  return typeof known === 'string' || (known.cwd !== null && inScope(known.cwd, file.path))
 }
 
 function stampMatchesFile(
@@ -215,7 +208,9 @@ function stampMatchesFile(
   return (
     stamp.platform === platform &&
     stamp.mtimeMs === file.mtimeMs &&
-    (stamp.sizeBytes === null || file.sizeBytes === undefined || stamp.sizeBytes === file.sizeBytes) &&
+    (stamp.sizeBytes === null ||
+      file.sizeBytes === undefined ||
+      stamp.sizeBytes === file.sizeBytes) &&
     sidecarUnchanged(stamp.sidecar, file.sidecar)
   )
 }

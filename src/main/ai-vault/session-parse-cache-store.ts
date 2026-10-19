@@ -63,6 +63,11 @@ export type SessionScopeCwdStamp = Pick<
 
 // `parsed` (from a parse row) outranks `read` (learned without a parse).
 export type SessionScopeCwdLookup = { parsed?: SessionScopeCwdStamp; read?: SessionScopeCwdStamp }
+export type SessionScopeCwdRead = {
+  found: Map<string, SessionScopeCwdLookup>
+  parsed: boolean
+  read: boolean
+}
 
 // The database behind this map (session-parse-cache-persistence.ts). A row the
 // map's bounds drop is read back from it rather than re-parsed.
@@ -70,7 +75,7 @@ export type SessionParseCacheColdTier = {
   read(path: string): PersistedSessionParseCacheEntry | undefined
   stored(path: string, entry: PersistedSessionParseCacheEntry): void
   deleted(path: string): void
-  readScopeCwds?(paths: readonly string[]): Map<string, SessionScopeCwdLookup>
+  readScopeCwds?(paths: readonly string[]): SessionScopeCwdRead
   storedScopeCwd?(path: string, stamp: SessionScopeCwdStamp): void
 }
 
@@ -84,10 +89,17 @@ const unlistedPaths = new Set<string>()
 const resumePaths = new Set<string>()
 // Scope cwds learned without a parse, for the paths the latest scope walk found.
 const readScopeCwds = new Map<string, SessionScopeCwdStamp>()
+const scopeKnowledge = new Map<string, SessionScopeCwdStamp | 'absent' | 'changed' | 'unresolved'>()
 let coldTier: SessionParseCacheColdTier | null = null
 
 export function setSessionParseCacheColdTier(next: SessionParseCacheColdTier | null): void {
   coldTier = next
+  clearSessionScopeCwdKnowledge()
+  readScopeCwds.clear()
+}
+
+export function clearSessionScopeCwdKnowledge(): void {
+  scopeKnowledge.clear()
 }
 
 export function resetSessionParseCacheForTests(): void {
@@ -96,6 +108,7 @@ export function resetSessionParseCacheForTests(): void {
   unlistedPaths.clear()
   resumePaths.clear()
   readScopeCwds.clear()
+  clearSessionScopeCwdKnowledge()
   coldTier = null
 }
 
@@ -106,6 +119,7 @@ export function invalidateSessionParseCacheEntry(path: string): void {
   resumePaths.delete(path)
   cache.delete(path)
   readScopeCwds.delete(path)
+  scopeKnowledge.delete(path)
   coldTier?.deleted(path)
 }
 
@@ -116,7 +130,7 @@ export function noteSessionParseCacheListed(path: string): void {
 
 export function getSessionParseCacheEntry(path: string): SessionParseCacheEntry | undefined {
   const entry = cache.get(path)
-  if (entry !== undefined || coldTier === null) {
+  if (entry !== undefined || coldTier === null || scopeKnowledge.get(path) === 'unresolved') {
     return entry
   }
   const persisted = coldTier.read(path)
@@ -133,45 +147,54 @@ export function getSessionParseCacheEntry(path: string): SessionParseCacheEntry 
 export function peekSessionParseCacheEntry(
   path: string
 ): PersistedSessionParseCacheEntry | undefined {
-  return cache.get(path) ?? coldTier?.read(path)
+  return (
+    cache.get(path) ??
+    (scopeKnowledge.get(path) === 'unresolved' ? undefined : coldTier?.read(path))
+  )
 }
 
 /** Scope cwds for many paths at once: memory first, then one batched database read. */
-export function lookupSessionScopeCwds(
-  paths: readonly string[]
-): Map<string, SessionScopeCwdLookup> {
-  const found = new Map<string, SessionScopeCwdLookup>()
-  const cold: string[] = []
+export function lookupSessionScopeCwds(paths: readonly string[]): void {
+  const cold = paths.filter((path) => !cache.has(path))
+  const stored =
+    coldTier === null || cold.length === 0
+      ? { found: new Map<string, SessionScopeCwdLookup>(), parsed: true, read: true }
+      : coldTier.readScopeCwds?.(cold)
   for (const path of paths) {
-    const row = cache.get(path)
-    const read = readScopeCwds.get(path)
-    if (row === undefined) {
-      cold.push(path)
-    }
-    if (row !== undefined || read !== undefined) {
-      found.set(path, {
-        ...(row === undefined ? {} : { parsed: scopeCwdStampOf(row) }),
-        ...(read === undefined ? {} : { read })
-      })
+    const row = stored?.found.get(path)
+    const parsed = row?.parsed ?? (stored?.parsed ? 'absent' : 'unresolved')
+    scopeKnowledge.set(path, cache.has(path) ? 'changed' : parsed)
+    const read = row?.read
+    if (read && !readScopeCwds.has(path)) {
+      readScopeCwds.set(path, read)
     }
   }
-  if (coldTier === null || cold.length === 0) {
-    return found
-  }
-  if (!coldTier.readScopeCwds) {
-    for (const path of cold) {
-      const row = coldTier.read(path)
-      if (row !== undefined) {
-        found.set(path, { ...found.get(path), parsed: scopeCwdStampOf(row) })
-      }
+}
+
+export function resolveSessionScopeCwd(
+  path: string,
+  matches: (stamp: SessionScopeCwdStamp) => boolean
+): { cwd: string | null } | 'read' | 'parse' {
+  const hot = cache.get(path)
+  let parsed = hot ? scopeCwdStampOf(hot) : scopeKnowledge.get(path)
+  if (parsed === 'changed') {
+    const stored = coldTier?.readScopeCwds?.([path]).found.get(path)
+    parsed = stored?.parsed ?? 'unresolved'
+    scopeKnowledge.set(path, parsed)
+    if (stored?.read && !readScopeCwds.has(path)) {
+      readScopeCwds.set(path, stored.read)
     }
-    return found
   }
-  for (const [path, stored] of coldTier.readScopeCwds(cold)) {
-    // A read cwd already in memory is at least as new as the stored one.
-    found.set(path, { ...stored, ...found.get(path) })
+  if (parsed === undefined || parsed === 'unresolved') {
+    scopeKnowledge.set(path, 'unresolved')
+    return 'parse'
   }
-  return found
+  for (const stamp of [typeof parsed === 'object' ? parsed : undefined, readScopeCwds.get(path)]) {
+    if (stamp && matches(stamp)) {
+      return { cwd: stamp.cwd }
+    }
+  }
+  return 'read'
 }
 
 export function storeSessionScopeCwd(path: string, stamp: SessionScopeCwdStamp): void {
@@ -181,9 +204,11 @@ export function storeSessionScopeCwd(path: string, stamp: SessionScopeCwdStamp):
 
 /** Keeps in memory only the read cwds of transcripts the latest scope walk found. */
 export function pruneSessionScopeCwds(discoveredPaths: ReadonlySet<string>): void {
-  for (const path of readScopeCwds.keys()) {
-    if (!discoveredPaths.has(path)) {
-      readScopeCwds.delete(path)
+  for (const map of [readScopeCwds, scopeKnowledge]) {
+    for (const path of map.keys()) {
+      if (!discoveredPaths.has(path)) {
+        map.delete(path)
+      }
     }
   }
 }
@@ -199,6 +224,9 @@ export function scopeCwdStampOf(entry: PersistedSessionParseCacheEntry): Session
 }
 
 export function storeSessionParseCacheEntry(path: string, entry: SessionParseCacheEntry): void {
+  if (scopeKnowledge.has(path)) {
+    scopeKnowledge.set(path, 'changed')
+  }
   const previous = cache.get(path)
   const changed =
     previous === undefined ||
