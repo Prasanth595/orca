@@ -130,6 +130,7 @@ export async function launchHeadlessAutomationAgent(
       },
       deliverTerminalPrompt: ({ handle, prompt }) =>
         runtime.deliverStartupFollowup(handle, {
+          agent,
           expectedProcess: TUI_AGENT_CONFIG[agent].expectedProcess,
           prompt: prompt.text
         })
