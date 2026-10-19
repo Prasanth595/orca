@@ -127,7 +127,7 @@ describe('project group deletion store routing', () => {
     const remotelyOwnedGroup = { ...projectGroup, executionHostId: 'runtime:env-1' }
     const store = createTestStore()
     store.setState({
-      settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
+      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: 'env-1' },
       projectGroups: [remotelyOwnedGroup],
       repos: [groupedRepo]
     })
@@ -150,7 +150,7 @@ describe('project group deletion store routing', () => {
     const locallyOwnedGroup = { ...projectGroup, executionHostId: 'local' }
     const store = createTestStore()
     store.setState({
-      settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
+      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: 'env-1' },
       projectGroups: [locallyOwnedGroup]
     })
 
@@ -187,7 +187,7 @@ describe('project group deletion store routing', () => {
     }
     const store = createTestStore()
     store.setState({
-      settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
+      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: 'env-1' },
       projectGroups: [remotelyOwnedGroup],
       folderWorkspaces: [unstampedWorkspace]
     })
@@ -203,7 +203,7 @@ describe('project group deletion store routing', () => {
     projectGroupsUpdate.mockResolvedValue(renamedGroup)
     const store = createTestStore()
     store.setState({
-      settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
+      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: 'env-1' },
       projectGroups: [locallyOwnedGroup]
     })
 
@@ -222,7 +222,7 @@ describe('project group deletion store routing', () => {
     const remoteGroup = { ...projectGroup, executionHostId: 'runtime:env-1' }
     const store = createTestStore()
     store.setState({
-      settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
+      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: 'env-1' },
       projectGroups: [remoteGroup]
     })
 
@@ -240,7 +240,7 @@ describe('project group deletion store routing', () => {
     const remoteGroup = { ...projectGroup, executionHostId: 'runtime:env-1' }
     const store = createTestStore()
     store.setState({
-      settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
+      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: 'env-1' },
       projectGroups: [localGroup, remoteGroup]
     })
 
@@ -257,7 +257,7 @@ describe('project group deletion store routing', () => {
     projectGroupsMoveProject.mockResolvedValue(movedRepo)
     const store = createTestStore()
     store.setState({
-      settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
+      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: 'env-1' },
       repos: [remoteRepo],
       projectGroups: [
         { ...projectGroup, executionHostId: 'local' },
@@ -293,7 +293,7 @@ describe('project group deletion store routing', () => {
     projectGroupsMoveProject.mockResolvedValue({ ...localDupRepo, projectGroupId: null })
     const store = createTestStore()
     store.setState({
-      settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
+      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: 'env-1' },
       repos: [localDupRepo, remoteDupRepo]
     })
 
@@ -327,7 +327,7 @@ describe('project group deletion store routing', () => {
     }
     const store = createTestStore()
     store.setState({
-      settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
+      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: 'env-1' },
       projectGroups: [localGroup, remoteGroup],
       repos: [localRepo, remoteGroupedRepo]
     })
@@ -365,7 +365,7 @@ describe('project group deletion store routing', () => {
     }
     const store = createTestStore()
     store.setState({
-      settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
+      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: 'env-1' },
       projectGroups: [localRoot, remoteRoot, remoteChild, unrelatedLocalChild]
     })
 
@@ -383,7 +383,7 @@ describe('project group deletion store routing', () => {
     projectGroupsUpdate.mockResolvedValue(renamedLocalGroup)
     const store = createTestStore()
     store.setState({
-      settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
+      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: 'env-1' },
       projectGroups: [localGroup, remoteGroup]
     })
 
@@ -514,7 +514,7 @@ describe('project group deletion store routing', () => {
     }
     const store = createTestStore()
     store.setState({
-      settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
+      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: 'env-1' },
       projectGroups: [localGroup, remoteGroup],
       repos: [remoteMemberRepo, unrelatedLocalRepo]
     })
@@ -577,7 +577,7 @@ describe('project group deletion store routing', () => {
     const remoteGroup = { ...projectGroup, executionHostId: 'runtime:env-1' }
     const store = createTestStore()
     store.setState({
-      settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
+      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: 'env-1' },
       projectGroups: [remoteGroup]
     })
 
@@ -604,7 +604,7 @@ describe('project group deletion store routing', () => {
     const localRepo = { ...remoteRepo, id: 'local-repo', projectGroupId: projectGroup.id }
     const store = createTestStore()
     store.setState({
-      settings: { activeRuntimeEnvironmentId: null } as never,
+      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: null },
       projectGroups: [localGroup],
       repos: [localRepo]
     })
@@ -649,7 +649,7 @@ describe('project group deletion store routing', () => {
     store.setState({
       projectGroups: [{ ...projectGroup, executionHostId: 'local' }],
       repos: [localRepo, sshRepo],
-      settings: { activeRuntimeEnvironmentId: null } as never
+      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: null }
     })
 
     await expect(
