@@ -1,5 +1,6 @@
 import type { DiscoveredSkill, SkillSourceKind } from './skills'
 import type { NativeChatSessionSkill, SlashCommandSuggestion } from './native-chat-slash-commands'
+import { pluginNamespacedSkillName } from './native-chat-skill-visibility'
 import { isSafeDisplayCharacter, stripUnsafeDisplayCharacters } from './skill-display-text'
 import { compareBaseSensitivityLocaleText } from './locale-text-collators'
 
@@ -148,7 +149,10 @@ function mergeNativeChatSkills(
     if (!safeName) {
       continue
     }
-    byName.set(safeName, [...(byName.get(safeName) ?? []), { ...skill, name: safeName }])
+    // Why: plugin skills invoke as `plugin:skill`, the way the agent itself
+    // addresses them — and the way the session's own report names them.
+    const name = pluginNamespacedSkillName(skill, safeName)
+    byName.set(name, [...(byName.get(name) ?? []), { ...skill, name }])
   }
   const discovered = new Map(
     [...byName.entries()].map(([name, namedSkills]) => [
