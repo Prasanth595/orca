@@ -582,7 +582,8 @@
             "76deec8f58": "切换组织失败",
             "7d4bc516ee": "切换配置文件失败",
             "f518e89aa5": "该项目已存在于那个配置文件中",
-            "f03ae7f27b": "转移项目失败"
+            "f03ae7f27b": "转移项目失败",
+            "signInTimedOut": "登录超时"
           }
         },
         "runtime": {
@@ -3429,7 +3430,9 @@
             "copiedLink": "已复制链接",
             "copyLinkFailed": "复制链接失败",
             "downloadOpenWithDefaultApp": "下载并使用默认应用程序打开",
-            "downloadOpenFailed": "无法下载“{{value0}}”。"
+            "downloadOpenFailed": "无法下载“{{value0}}”。",
+            "openInThisGroup": "在此分组中打开",
+            "openInThisGroupRefused": "无法在此分组中打开 {{value0}}"
           },
           "TerminalQuickCommandsSubmenu": {
             "3ccc7981bb": "主机不可用",
@@ -3494,7 +3497,7 @@
         "bar": {
           "BrowserTab": {
             "6e0bc8f3a8": "在浏览器中打开",
-            "9dd880bd56": "关闭右侧的选项卡",
+            "9dd880bd56": "关闭右侧的所有选项卡",
             "1611a1324b": "关闭",
             "5d6e89891f": "复制选项卡",
             "966feb9ad5": "向右拆分",
@@ -3511,7 +3514,7 @@
             "52ce4f4605": "复制相对路径",
             "5b85754786": "复制路径",
             "bfd5797ef4": "打开 Markdown 预览",
-            "e5ff31ccaf": "关闭右侧的选项卡",
+            "e5ff31ccaf": "关闭右侧的所有选项卡",
             "ba1369dd24": "关闭所有编辑器选项卡",
             "1ba8492c5b": "关闭",
             "68cc610e7f": "重命名",
@@ -3544,7 +3547,7 @@
           "SortableTabContextMenu": {
             "35e8892fd0": "标签颜色",
             "2f697b3c31": "更改标题",
-            "c1ee099c7e": "关闭右侧的选项卡",
+            "c1ee099c7e": "关闭右侧的所有选项卡",
             "8d16f9cd30": "关闭其他",
             "89359a36f7": "关闭",
             "21132389e9": "向右拆分",
@@ -17946,6 +17949,14 @@
         "a62f9db53d": "Cancel",
         "c77189bc0c": "Update filter",
         "19af906d12": "Save filter"
+      },
+      "OrcaSignInProgress": {
+        "waiting": "正在等待在浏览器中登录",
+        "copyLink": "复制登录链接",
+        "copied": "已复制登录链接",
+        "copyFailed": "无法复制链接。",
+        "signingIn": "正在登录…",
+        "cancel": "取消"
       }
     },
     "i18n": {
@@ -18761,15 +18772,15 @@
         "SortableTabContextMenu": {
           "switchToTerminalView": "切换到终端视图",
           "switchToChatView": "切换到聊天视图",
-          "closeTabsToLeft": "关闭左侧的选项卡"
+          "closeTabsToLeft": "关闭左侧的所有选项卡"
         },
         "BrowserTab": {
           "closeOthers": "关闭其他",
-          "closeTabsToLeft": "关闭左侧的选项卡"
+          "closeTabsToLeft": "关闭左侧的所有选项卡"
         },
         "EditorFileTabContextMenu": {
           "closeOthers": "关闭其他",
-          "closeTabsToLeft": "关闭左侧的选项卡"
+          "closeTabsToLeft": "关闭左侧的所有选项卡"
         },
         "CopyTabIdMenuItem": {
           "copied": "已复制标签页 ID",
