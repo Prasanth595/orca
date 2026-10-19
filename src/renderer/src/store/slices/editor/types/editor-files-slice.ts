@@ -89,6 +89,8 @@ export type EditorFilesSlice = {
   setLastKnownDiskSignature: (fileId: string, signature: string) => void
   /** The one way a load advances a clean tab's baseline: refuses a dirty tab and drops a stale retained draft. */
   commitCleanDiskContent: (fileId: string, content: string) => void
+  /** On a clean tab's first edit: the baseline becomes the text that editor showed, which another panel's newer load may not match. */
+  anchorEditBaseline: (fileId: string, baseContent: string) => void
   setDiskOverwriteIntent: (fileId: string, intent: 'verifying' | 'unverified' | null) => void
   clearPendingDiskBaselineVerification: (fileId: string) => void
   setPendingDiskBaselineVerification: (fileId: string, value: boolean) => void

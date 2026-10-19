@@ -79,8 +79,6 @@ export function DiffSectionItem({
   const [modifiedEditor, setModifiedEditor] = useState<monacoEditor.ICodeEditor | null>(null)
   // Why: the model is swapped per contentGeneration without remounting, so each model remembers the
   // generation it was created for; edits from a superseded model are ignored.
-  const contentGenerationRef = useRef(section.contentGeneration ?? 0)
-  contentGenerationRef.current = section.contentGeneration ?? 0
   const modelGenerationsRef = useRef(new WeakMap<monacoEditor.ITextModel, number>())
   const labelModelGeneration = (
     model: monacoEditor.ITextModel | null,
@@ -260,7 +258,6 @@ export function DiffSectionItem({
     const cleanupOriginalFindShortcut = installMonacoEditorFindShortcut(original)
     const cleanupModifiedFindShortcut = installMonacoEditorFindShortcut(modified)
     const sectionKey = section.key
-    labelModelGeneration(modified.getModel(), contentGenerationRef.current)
     const modelContentSub = modified.onDidChangeModelContent(() => {
       const current = modified.getValue()
       const model = modified.getModel()

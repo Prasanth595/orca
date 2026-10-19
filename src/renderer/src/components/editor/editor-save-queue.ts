@@ -169,8 +169,17 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
           .setLastKnownDiskSignature(file.id, getWrittenContentDiskSignature(contentToSave))
         store.getState().setDiskOverwriteIntent(file.id, null)
         refreshCleanSiblingTabsAfterSave(store.getState().openFiles, liveFile)
+        const announceSaved = (): void => {
+          window.dispatchEvent(
+            new CustomEvent<EditorFileSavedDetail>(ORCA_EDITOR_FILE_SAVED_EVENT, {
+              detail: { fileId: file.id, content: contentToSave }
+            })
+          )
+        }
 
         if ((saveGeneration.get(file.id) ?? 0) !== queuedGeneration) {
+          // Why: panels still cache the pre-save text, and a first edit anchors its guard to that cache.
+          announceSaved()
           return
         }
 
@@ -192,11 +201,7 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
           nextState.setExternalMutation(file.id, null)
         }
 
-        window.dispatchEvent(
-          new CustomEvent<EditorFileSavedDetail>(ORCA_EDITOR_FILE_SAVED_EVENT, {
-            detail: { fileId: file.id, content: contentToSave }
-          })
-        )
+        announceSaved()
       })
 
     let trackedSave: Promise<void>

@@ -20,6 +20,7 @@ export function createOpenFileMutations(
   | 'setExternalMutation'
   | 'setLastKnownDiskSignature'
   | 'commitCleanDiskContent'
+  | 'anchorEditBaseline'
   | 'setDiskOverwriteIntent'
   | 'clearPendingDiskBaselineVerification'
   | 'setPendingDiskBaselineVerification'
@@ -154,6 +155,24 @@ export function createOpenFileMutations(
         }
         return {
           editorDrafts,
+          openFiles: s.openFiles.map((f) =>
+            f.id === fileId ? { ...f, lastKnownDiskSignature: signature } : f
+          )
+        }
+      }),
+
+    anchorEditBaseline: (fileId, baseContent) =>
+      set((s) => {
+        const file = s.openFiles.find((f) => f.id === fileId)
+        // Why: only the first edit of a clean tab anchors; later edits derive from the same base.
+        if (!file || file.isDirty || file.lastKnownDiskSignature === undefined) {
+          return s
+        }
+        const signature = getDiskBaselineSignature(baseContent)
+        if (file.lastKnownDiskSignature === signature) {
+          return s
+        }
+        return {
           openFiles: s.openFiles.map((f) =>
             f.id === fileId ? { ...f, lastKnownDiskSignature: signature } : f
           )

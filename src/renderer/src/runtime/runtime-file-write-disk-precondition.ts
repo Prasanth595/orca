@@ -19,7 +19,7 @@ import {
 } from '../../../shared/remote-runtime-client-error-classification'
 import {
   callRuntimeFileMutationWithCapabilities,
-  RuntimeConnectionChangedError
+  isRuntimeConnectionChangedError
 } from './runtime-file-mutation-rpc'
 import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
 import { readRuntimeFileContent } from './runtime-file-read-client'
@@ -110,7 +110,7 @@ export async function writeRemoteFileIfUnchanged(
   try {
     return await attempt()
   } catch (error) {
-    if (error instanceof RuntimeConnectionChangedError) {
+    if (isRuntimeConnectionChangedError(error)) {
       // Why: nothing was sent; one retry re-probes the new connection's capabilities.
       return attempt()
     }

@@ -1,4 +1,5 @@
 import type { RuntimeStatus } from '../../../shared/runtime-types'
+import { RUNTIME_CONNECTION_CHANGED_MESSAGE } from '../web/web-runtime-request-registry'
 import { assertFileMutationOwnershipCapability } from '../../../shared/file-mutation-ownership'
 import { callRuntimeRpc } from './runtime-rpc-client'
 import {
@@ -38,8 +39,16 @@ export async function assertRuntimeFileMutationCapability(
 /** Thrown before sending, so nothing reached either runtime and a re-probed retry is safe. */
 export class RuntimeConnectionChangedError extends Error {
   constructor() {
-    super('Runtime connection changed; try again.')
+    super(RUNTIME_CONNECTION_CHANGED_MESSAGE)
   }
+}
+
+/** The paired web client's transport refuses with the same wording before it sends. */
+export function isRuntimeConnectionChangedError(error: unknown): boolean {
+  return (
+    error instanceof RuntimeConnectionChangedError ||
+    (error instanceof Error && error.message === RUNTIME_CONNECTION_CHANGED_MESSAGE)
+  )
 }
 
 export type RuntimeFileMutationPlan<TResult> =

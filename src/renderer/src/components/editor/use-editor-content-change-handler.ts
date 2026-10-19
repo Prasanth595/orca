@@ -24,6 +24,7 @@ export function useEditorContentChangeHandler({
 }): (file: OpenFile | null, content: string) => void {
   const markFileDirty = useAppStore((s) => s.markFileDirty)
   const setEditorDraft = useAppStore((s) => s.setEditorDraft)
+  const anchorEditBaseline = useAppStore((s) => s.anchorEditBaseline)
   const fileContentsRef = useRef(fileContents)
   const diffContentsRef = useRef(diffContents)
   useLayoutEffect(() => {
@@ -41,18 +42,31 @@ export function useEditorContentChangeHandler({
       }
       setEditorDraft(file.id, content)
       const ignoreTrailingWhitespace = file.language === 'markdown'
+      // Why: split panels cache content separately while the baseline is shared; an edit must be
+      // guarded against the text this panel showed, not a newer load another panel made.
+      const markEdited = (original: string, displayedFromDisk: boolean): void => {
+        const dirty = !isEditorContentUnchanged(content, original, ignoreTrailingWhitespace)
+        if (dirty && displayedFromDisk) {
+          anchorEditBaseline(file.id, original)
+        }
+        markFileDirty(file.id, dirty)
+      }
       if (file.mode === 'edit') {
-        const original = fileContentsRef.current[file.id]?.content ?? ''
-        markFileDirty(
-          file.id,
-          !isEditorContentUnchanged(content, original, ignoreTrailingWhitespace)
+        const loaded = fileContentsRef.current[file.id]
+        markEdited(
+          loaded?.content ?? '',
+          loaded !== undefined && !loaded.isBinary && !loaded.loadError && !loaded.csvPreview
         )
         return
       }
       const diffContent = diffContentsRef.current[file.id]
-      const original = diffContent?.kind === 'text' ? diffContent.modifiedContent : ''
-      markFileDirty(file.id, !isEditorContentUnchanged(content, original, ignoreTrailingWhitespace))
+      markEdited(
+        diffContent?.kind === 'text' ? diffContent.modifiedContent : '',
+        diffContent?.kind === 'text' &&
+          file.diffSource === 'unstaged' &&
+          !diffContent.largeDiffRenderLimit?.limited
+      )
     },
-    [markFileDirty, setEditorDraft]
+    [anchorEditBaseline, markFileDirty, setEditorDraft]
   )
 }
