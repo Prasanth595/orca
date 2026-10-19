@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   CREATE_WORKTREE_ITEM_ID,
-  WORKTREE_PALETTE_SELECTION_MOVE_KEYS,
   createWorktreePaletteRequestGuard,
   getNextWorktreePaletteSelection,
   getWorktreePaletteSelectionItemIds,
@@ -182,7 +181,7 @@ describe('worktree-palette-create-action', () => {
     })
   })
 
-  it('derives selection ids from rendered entries while skipping headers and hints', () => {
+  it('derives selection ids from rendered entries while skipping headers', () => {
     expect(
       getWorktreePaletteSelectionItemIds([
         { id: '__header_worktrees__', type: 'section-header' },
@@ -198,6 +197,7 @@ describe('worktree-palette-create-action', () => {
     ).toEqual([
       'worktree:one',
       CREATE_WORKTREE_ITEM_ID,
+      '__hint_worktree_cap__',
       'settings:ai-provider-accounts',
       'quick-action:new-terminal',
       'browser-page:one'
@@ -231,40 +231,35 @@ describe('worktree-palette-create-action', () => {
     ).toBe('browser-page:first')
   })
 
-  it('leaves create unarmed for free text until the user moves the selection', () => {
-    // Why: cmdk auto-selects the first row once the controlled value empties, so
-    // with Create alone on screen Enter would fire without any user gesture.
+  it('allows Enter for a typed create name without requiring arrow navigation', () => {
     expect(
       isWorktreePaletteCreateActivationAllowed({
         hasTaskUrlIntent: false,
+        hasCreateName: true,
         selectionMovedByUser: false
       })
-    ).toBe(false)
+    ).toBe(true)
     expect(
       isWorktreePaletteCreateActivationAllowed({
         hasTaskUrlIntent: false,
+        hasCreateName: false,
         selectionMovedByUser: true
       })
     ).toBe(true)
     expect(
       isWorktreePaletteCreateActivationAllowed({
         hasTaskUrlIntent: true,
+        hasCreateName: false,
         selectionMovedByUser: false
       })
     ).toBe(true)
-  })
-
-  it('counts only navigation keys as a user selection move', () => {
-    expect([...WORKTREE_PALETTE_SELECTION_MOVE_KEYS].sort()).toEqual([
-      'ArrowDown',
-      'ArrowUp',
-      'End',
-      'Home',
-      'PageDown',
-      'PageUp'
-    ])
-    // Enter is the activation itself, so it must never count as the gesture that arms it.
-    expect(WORKTREE_PALETTE_SELECTION_MOVE_KEYS.has('Enter')).toBe(false)
+    expect(
+      isWorktreePaletteCreateActivationAllowed({
+        hasTaskUrlIntent: false,
+        hasCreateName: false,
+        selectionMovedByUser: false
+      })
+    ).toBe(false)
   })
 
   it('invalidates stale async create lookups', () => {

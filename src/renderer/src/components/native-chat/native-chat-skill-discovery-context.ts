@@ -1,33 +1,39 @@
 import type { AppState } from '../../store/types'
 import type { SkillDiscoveryTarget } from '../../../../shared/skills'
 import { parseExecutionHostId } from '../../../../shared/execution-host'
-import type { RuntimeClientTarget } from '@/runtime/runtime-rpc-client'
-import {
-  getExplicitRuntimeEnvironmentIdForWorktree,
-  getExecutionHostIdForWorktree
-} from '@/lib/worktree-runtime-owner'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
+import { getExecutionHostIdForWorktree } from '@/lib/worktree-runtime-owner'
+import { runtimeEnvironmentIdForWorkspaceOwner } from '@/lib/resolve-owner'
 import { getLocalProjectExecutionRuntimeContext } from '@/lib/local-preflight-context'
-import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
+import {
+  resolveNativeChatTabDirectory,
+  resolveNativeChatTabDirectoryResolution,
+  type NativeChatTabDirectoryState
+} from './native-chat-tab-directory'
 
 export type NativeChatSkillStateInputs = Pick<
   AppState,
   | 'activeRepoId'
+  | 'activeWorkspaceExecutionHostId'
   | 'activeWorktreeId'
+  | 'detectedWorktreesByRepo'
+  | 'floatingWorkspacePath'
   | 'folderWorkspaces'
   | 'projectGroups'
   | 'projects'
   | 'repos'
   | 'restoredRuntimeHostIdByWorkspaceSessionKey'
   | 'settings'
+  | 'structuredSessionLaunchDirectoryByTabId'
   | 'tabsByWorktree'
+  | 'unifiedTabsByWorktree'
   | 'worktreesByRepo'
 >
 
 type NativeChatSkillTab = { id: string; startupCwd?: string }
 
-type NativeChatSkillWorktreeState = {
+type NativeChatSkillWorktreeState = NativeChatTabDirectoryState & {
   tabsByWorktree: Record<string, readonly NativeChatSkillTab[]>
-  worktreesByRepo: Record<string, readonly { id: string; path: string }[]>
 }
 
 export type NativeChatSkillDiscoveryContext = {
@@ -41,14 +47,20 @@ export type NativeChatSkillDiscoveryContext = {
 export function selectNativeChatSkillStateInputs(state: AppState): NativeChatSkillStateInputs {
   return {
     activeRepoId: state.activeRepoId,
+    // Why: the owner resolver needs the picked host and detected rows to tell twins apart.
+    activeWorkspaceExecutionHostId: state.activeWorkspaceExecutionHostId,
     activeWorktreeId: state.activeWorktreeId,
+    detectedWorktreesByRepo: state.detectedWorktreesByRepo,
+    floatingWorkspacePath: state.floatingWorkspacePath,
     folderWorkspaces: state.folderWorkspaces,
     projectGroups: state.projectGroups,
     projects: state.projects,
     repos: state.repos,
     restoredRuntimeHostIdByWorkspaceSessionKey: state.restoredRuntimeHostIdByWorkspaceSessionKey,
     settings: state.settings,
+    structuredSessionLaunchDirectoryByTabId: state.structuredSessionLaunchDirectoryByTabId,
     tabsByWorktree: state.tabsByWorktree,
+    unifiedTabsByWorktree: state.unifiedTabsByWorktree,
     worktreesByRepo: state.worktreesByRepo
   }
 }
@@ -57,7 +69,7 @@ export function resolveNativeChatSkillDiscoveryCwd(
   state: NativeChatSkillWorktreeState,
   terminalTabId: string
 ): string | null {
-  const found = findTerminalTab(state.tabsByWorktree, terminalTabId)
+  const found = findNativeChatTab(state, terminalTabId)
   if (!found) {
     return null
   }
@@ -67,31 +79,33 @@ export function resolveNativeChatSkillDiscoveryCwd(
   if (startupCwd) {
     return startupCwd
   }
-  for (const worktrees of Object.values(state.worktreesByRepo)) {
-    const worktree = worktrees.find((entry) => entry.id === found.worktreeId)
-    if (worktree) {
-      return worktree.path
-    }
+  return resolveNativeChatTabDirectory(state, terminalTabId, found.worktreeId)
+}
+
+/** A missing context that is not a failure: the chat's folder is known soon, when its pin arrives. */
+export function isNativeChatSkillDiscoveryAwaitingDirectory(
+  state: NativeChatSkillWorktreeState,
+  terminalTabId: string
+): boolean {
+  const found = findNativeChatTab(state, terminalTabId)
+  if (!found || found.tab.startupCwd?.trim()) {
+    return false
   }
-  return null
+  return (
+    resolveNativeChatTabDirectoryResolution(state, terminalTabId, found.worktreeId).status ===
+    'awaiting-pin'
+  )
 }
 
 export function resolveNativeChatSkillDiscoveryContext(
   state: NativeChatSkillStateInputs,
   terminalTabId: string
 ): NativeChatSkillDiscoveryContext | null {
-  const worktreeId = findTerminalTab(state.tabsByWorktree, terminalTabId)?.worktreeId ?? null
+  const worktreeId = findNativeChatTab(state, terminalTabId)?.worktreeId ?? null
   if (!worktreeId) {
     return null
   }
-  const workspaceScope = parseWorkspaceKey(worktreeId)
-  const cwd =
-    resolveNativeChatSkillDiscoveryCwd(state, terminalTabId) ??
-    (workspaceScope?.type === 'folder'
-      ? state.folderWorkspaces.find(
-          (workspace) => workspace.id === workspaceScope.folderWorkspaceId
-        )?.folderPath
-      : null)
+  const cwd = resolveNativeChatSkillDiscoveryCwd(state, terminalTabId)
   if (!cwd) {
     return null
   }
@@ -108,7 +122,12 @@ export function resolveNativeChatSkillDiscoveryContext(
     }
   }
 
-  const runtimeEnvironmentId = getExplicitRuntimeEnvironmentIdForWorktree(state, worktreeId)
+  const owner = runtimeEnvironmentIdForWorkspaceOwner(state, { workspaceId: worktreeId })
+  // Why: listing one twin's skills under the other's chat would offer skills that host lacks.
+  if (owner.kind === 'ambiguous') {
+    return null
+  }
+  const runtimeEnvironmentId = owner.environmentId
   // Why: a selected global runtime is not proof that it owns this pane. Modern
   // panes carry an owner stamp; ambiguous legacy panes stay not-ready.
   if (parsedHost?.kind === 'runtime' && !runtimeEnvironmentId) {
@@ -140,6 +159,16 @@ export function resolveNativeChatSkillDiscoveryContext(
     // owned panes resolve host semantics on the runtime, never here).
     discoveryTarget: { cwd, worktreeId, ...(projectRuntime ? { projectRuntime } : {}) }
   }
+}
+
+function findNativeChatTab(
+  state: Pick<NativeChatSkillWorktreeState, 'tabsByWorktree' | 'unifiedTabsByWorktree'>,
+  tabId: string
+): { worktreeId: string; tab: NativeChatSkillTab } | null {
+  return (
+    findTerminalTab(state.tabsByWorktree, tabId) ??
+    findTerminalTab(state.unifiedTabsByWorktree ?? {}, tabId)
+  )
 }
 
 function findTerminalTab(

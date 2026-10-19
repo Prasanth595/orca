@@ -15,6 +15,10 @@ import {
   isWorkspaceInactiveForCleanup
 } from './workspace-cleanup-candidate'
 import { getRepoOwnedWorktreeMeta, isWorktreeMetaOwnedByRepo } from '../worktree-metadata-ownership'
+import {
+  readAllWorktreeMetaForHost,
+  readWorktreeMetaForHost
+} from '../persistence/host-qualified-worktree-meta'
 
 export function synthesizeDisconnectedSshCleanupCandidates(
   store: Store,
@@ -25,6 +29,7 @@ export function synthesizeDisconnectedSshCleanupCandidates(
   includeAllWorkspaces = false
 ): WorkspaceCleanupCandidate[] {
   const repoWorktreePrefix = `${repo.id}::`
+  const executionHostId = getRepoExecutionHostId(repo)
   if (targetWorktreeIds) {
     const candidates: WorkspaceCleanupCandidate[] = []
     // Why: targeted refreshes name their workspaces already; walking all
@@ -33,7 +38,11 @@ export function synthesizeDisconnectedSshCleanupCandidates(
       if (!worktreeId.startsWith(repoWorktreePrefix)) {
         continue
       }
-      const meta = store.getWorktreeMeta(worktreeId)
+      const meta =
+        readWorktreeMetaForHost(store, worktreeId, executionHostId) ??
+        (typeof store.getWorktreeMetaForHost === 'function'
+          ? undefined
+          : store.getWorktreeMeta(worktreeId))
       if (isWorktreeMetaOwnedByRepo(repo, meta, repoOwnerCount)) {
         candidates.push(createDisconnectedSshCandidate(repo, scannedAt, worktreeId, meta))
       }
@@ -42,18 +51,27 @@ export function synthesizeDisconnectedSshCleanupCandidates(
   }
 
   const candidates: WorkspaceCleanupCandidate[] = []
-  const allMeta = store.getAllWorktreeMeta()
+  const allMeta = readAllWorktreeMetaForHost(store, executionHostId)
   for (const worktreeId in allMeta) {
     if (!Object.hasOwn(allMeta, worktreeId) || !worktreeId.startsWith(repoWorktreePrefix)) {
       continue
     }
-    const meta = getRepoOwnedWorktreeMeta(repo, worktreeId, allMeta, repoOwnerCount)
+    const owned = getRepoOwnedWorktreeMeta(repo, worktreeId, allMeta, repoOwnerCount)
+    const meta = owned && withTerminalUse(owned)
     if (!meta || (!includeAllWorkspaces && !isWorkspaceInactiveForCleanup(meta, scannedAt))) {
       continue
     }
     candidates.push(createDisconnectedSshCandidate(repo, scannedAt, worktreeId, meta))
   }
   return candidates
+}
+
+// A terminal used on any device counts, even while its host is unreachable. Unlike the live scan, createdAt is not counted here.
+function withTerminalUse(meta: WorktreeMeta): WorktreeMeta {
+  const usedAt = meta.lastTerminalUseAt
+  return usedAt !== undefined && Number.isFinite(usedAt) && usedAt > meta.lastActivityAt
+    ? { ...meta, lastActivityAt: usedAt }
+    : meta
 }
 
 function createDisconnectedSshCandidate(
@@ -74,8 +92,6 @@ function createDisconnectedSshCandidate(
     displayName: meta.displayName || basename(path),
     branch: basename(path),
     path,
-    tier: 'protected',
-    selectedByDefault: false,
     reasons,
     blockers: ['ssh-disconnected'],
     lastActivityAt: meta.lastActivityAt,

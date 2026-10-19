@@ -1,8 +1,9 @@
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
+import { runWslProcess } from './wsl/wsl-runner'
 import { isSafeFishHistorySession } from './fish-history-session'
+import { isWslDistroRunning } from './wsl-background-distro-gate'
 
-const execFileAsync = promisify(execFile)
+/** 'distro-stopped': nothing ran, because GC must not boot a stopped distro; retry once it runs. */
+export type WslFishHistoryCleanupOutcome = 'deleted' | 'skipped' | 'distro-stopped'
 
 /** Deduped by distro+session, so a rescan that re-queues the same tombstone
  *  joins the running call instead of spawning a second `wsl.exe`.
@@ -12,7 +13,7 @@ const execFileAsync = promisify(execFile)
  *  but can still be dozens of `wsl.exe` launches during a startup GC drain on a
  *  machine with many dead WSL fish worktrees. Narrowing that belongs with the
  *  tombstone scheduler that owns the admission, not here. */
-const cleanupsInFlight = new Map<string, Promise<void>>()
+const cleanupsInFlight = new Map<string, Promise<WslFishHistoryCleanupOutcome>>()
 
 /** Why run this INSIDE the distro: the history file lives on the distro's own
  *  filesystem under its `$XDG_DATA_HOME`/`$HOME`, which only a shell in there
@@ -29,17 +30,18 @@ function fishCleanupScript(session: string): string {
 export function deleteWslFishHistoryFile(
   distro: string,
   session: string,
-  run: typeof execFileAsync = execFileAsync
-): Promise<void> {
+  run: typeof runWslProcess = runWslProcess,
+  isRunning: (distro: string) => Promise<boolean> = isWslDistroRunning
+): Promise<WslFishHistoryCleanupOutcome> {
   if (!distro.trim() || !isSafeFishHistorySession(session)) {
-    return Promise.resolve()
+    return Promise.resolve('skipped')
   }
   const key = `${distro}\0${session}`
   const existing = cleanupsInFlight.get(key)
   if (existing) {
     return existing
   }
-  const cleanup = runCleanup(distro, session, run).finally(() => {
+  const cleanup = runCleanup(distro, session, run, isRunning).finally(() => {
     cleanupsInFlight.delete(key)
   })
   cleanupsInFlight.set(key, cleanup)
@@ -49,13 +51,30 @@ export function deleteWslFishHistoryFile(
 async function runCleanup(
   distro: string,
   session: string,
-  run: typeof execFileAsync
-): Promise<void> {
-  await run(
-    'wsl.exe',
-    ['--distribution', distro, '--exec', 'fish', '--command', fishCleanupScript(session)],
-    { timeout: 5_000, windowsHide: true }
-  )
+  run: typeof runWslProcess,
+  isRunning: (distro: string) => Promise<boolean>
+): Promise<WslFishHistoryCleanupOutcome> {
+  if (!(await isRunning(distro))) {
+    return 'distro-stopped'
+  }
+  const result = await run({
+    distro,
+    // 'preferred', not 'none': `fish` is a bare name, so it is a PATH lookup.
+    // A fish from linuxbrew or nix lives only on the login PATH, and without it
+    // this throws on a distro where the cleanup would have worked. The probe
+    // failing is still fine -- the old `--exec fish` spawn sourced no login
+    // shell either, so running on the default PATH is no worse than before.
+    loginPath: 'preferred',
+    program: 'fish',
+    args: ['--command', fishCleanupScript(session)],
+    timeoutMs: 5_000
+  })
+  if (result.code !== 0 || result.timedOut) {
+    throw new Error(
+      `wsl fish history cleanup failed for ${distro}: code=${result.code} timedOut=${result.timedOut}`
+    )
+  }
+  return 'deleted'
 }
 
 /** Test-only: drop in-flight state so one test's pending work cannot reach the next. */
@@ -69,7 +88,7 @@ export function __resetWslFishHistoryCleanups(): void {
  *  make `while (size > 0)` re-await a resolved promise forever, starving the
  *  event loop instead of returning. */
 export async function flushWslFishHistoryCleanups(): Promise<void> {
-  const awaited = new Set<Promise<void>>()
+  const awaited = new Set<Promise<WslFishHistoryCleanupOutcome>>()
   let pending = [...cleanupsInFlight.values()]
   while (pending.length > 0) {
     for (const cleanup of pending) {

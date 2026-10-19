@@ -13,7 +13,7 @@ import {
   planWorkspaceStatusAssignment,
   selectMenuScopedMap,
   shouldRevealWorktreeDeveloperMenu
-} from './WorktreeContextMenu'
+} from './worktree-context-menu-policy'
 import { getDeleteStateForWorktreeHost } from './worktree-delete-state-host-match'
 import type { WorktreeLineage } from '../../../../shared/worktree/lineage-types'
 import type { WorkspaceStatusDefinition, Worktree } from '../../../../shared/worktree/types'
@@ -173,6 +173,11 @@ describe('shouldSuppressContextMenuFollowUpClick', () => {
 
   it('does not suppress later unrelated clicks', () => {
     expect(shouldSuppressContextMenuFollowUpClick(1_000, 1_700)).toBe(false)
+  })
+
+  it('keeps the 500 ms ctrl-click boundary inclusive', () => {
+    expect(shouldSuppressContextMenuFollowUpClick(1_000, 1_500)).toBe(true)
+    expect(shouldSuppressContextMenuFollowUpClick(1_000, 1_501)).toBe(false)
   })
 
   it('does not suppress clicks that predate the context menu timestamp', () => {

@@ -1,5 +1,5 @@
 import { resolve } from 'node:path'
-import type { Store } from '../persistence'
+import type { RuntimeStore } from '../runtime/runtime-store-contract'
 import {
   getLocalProjectWorktreeGitOptions,
   type LocalProjectWorktreeGitOptions
@@ -19,24 +19,25 @@ function getCandidateLocalWorktreePaths(
   return new Set([worktreePath, resolvedWorktreePath].map(comparableLocalPath))
 }
 
-function hasRegisteredWorktreeMetaForRepo(
-  store: Store,
-  repoId: string,
+/** Repos owning a registered worktree at one of `candidatePaths`, in one pass over the meta table. */
+function collectRepoIdsWithRegisteredWorktreeMeta(
+  store: RuntimeStore,
   candidatePaths: Set<string>
-): boolean {
+): Set<string> {
   const worktreeMeta =
     typeof store.getAllWorktreeMeta === 'function' ? store.getAllWorktreeMeta() : {}
+  const repoIds = new Set<string>()
   for (const worktreeId of Object.keys(worktreeMeta)) {
     const parsed = splitWorktreeId(worktreeId)
-    if (parsed?.repoId === repoId && candidatePaths.has(comparableLocalPath(parsed.worktreePath))) {
-      return true
+    if (parsed && candidatePaths.has(comparableLocalPath(parsed.worktreePath))) {
+      repoIds.add(parsed.repoId)
     }
   }
-  return false
+  return repoIds
 }
 
 export function getLocalRepoForRegisteredWorktree(
-  store: Store,
+  store: RuntimeStore,
   worktreePath: string,
   resolvedWorktreePath: string
 ): Repo | undefined {
@@ -45,20 +46,25 @@ export function getLocalRepoForRegisteredWorktree(
   }
 
   const candidatePaths = getCandidateLocalWorktreePaths(worktreePath, resolvedWorktreePath)
+  // Built at most once, and only when a repo actually needs it, so the meta table is never
+  // rescanned per repo — 59 IPC call sites hit this, some per keystroke.
+  let repoIdsWithMeta: Set<string> | undefined
   return store
     .getRepos()
     .find(
       (repo) =>
         !repo.connectionId &&
         (candidatePaths.has(comparableLocalPath(repo.path)) ||
-          hasRegisteredWorktreeMetaForRepo(store, repo.id, candidatePaths))
+          (repoIdsWithMeta ??= collectRepoIdsWithRegisteredWorktreeMeta(store, candidatePaths)).has(
+            repo.id
+          ))
     )
 }
 
 /** Git options for a repo already resolved by `getLocalRepoForRegisteredWorktree`,
  *  so a caller needing both does not walk every repo's worktree meta twice. */
 export function getLocalGitOptionsForRepo(
-  store: Store,
+  store: RuntimeStore,
   repo: Repo | undefined
 ): LocalProjectWorktreeGitOptions {
   if (!repo || typeof store.getProjects !== 'function' || typeof store.getSettings !== 'function') {
@@ -70,7 +76,7 @@ export function getLocalGitOptionsForRepo(
 }
 
 export function getLocalGitOptionsForRegisteredWorktree(
-  store: Store,
+  store: RuntimeStore,
   worktreePath: string,
   resolvedWorktreePath: string
 ): LocalProjectWorktreeGitOptions {

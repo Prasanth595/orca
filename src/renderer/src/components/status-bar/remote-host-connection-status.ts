@@ -1,12 +1,28 @@
 import { translate } from '@/i18n/i18n'
 import type { SshConnectionStatus } from '../../../../shared/ssh-types'
 import type { RemoteRuntimeSharedConnectionDiagnostics } from '../../../../shared/remote-runtime-shared-control-types'
-import type { HostStatus } from '@/runtime/runtime-host-connection-state'
+import type { RuntimeHostBlockedReason } from '../../../../shared/runtime-host-status'
+import {
+  describeRuntimeCompatBlock,
+  type RuntimeCompatVerdict
+} from '../../../../shared/protocol-compat'
+import {
+  runtimeStatusForOverall,
+  type HostStatus,
+  type RuntimeHostConnectionState
+} from '@/runtime/runtime-host-connection-state'
 import { isConnectingSshStatus } from '@/ssh/ssh-connection-recoverability'
 
-export function overallStatus(
-  statuses: HostStatus[]
-): 'connected' | 'partial' | 'disconnected' | 'connecting' {
+/** 'blocked' is a host that refused us (revoked pairing or incompatible versions). */
+export type OverallHostStatus = HostStatus | 'blocked'
+export type OverallRemoteHostsStatus =
+  | 'connected'
+  | 'partial'
+  | 'disconnected'
+  | 'connecting'
+  | 'attention'
+
+export function overallStatus(statuses: OverallHostStatus[]): OverallRemoteHostsStatus {
   if (statuses.length === 0) {
     return 'disconnected'
   }
@@ -16,16 +32,17 @@ export function overallStatus(
   if (statuses.some((s) => s === 'connecting')) {
     return 'connecting'
   }
+  // Why: a refused host never recovers on its own, so it must not hide behind "partial"/idle grey.
+  if (statuses.some((s) => s === 'blocked')) {
+    return 'attention'
+  }
   if (statuses.some((s) => s === 'connected')) {
     return 'partial'
   }
   return 'disconnected'
 }
 
-export function overallDotColor(
-  status: 'connected' | 'partial' | 'disconnected' | 'connecting',
-  connectedCount: number
-): string {
+export function overallDotColor(status: OverallRemoteHostsStatus, connectedCount: number): string {
   switch (status) {
     case 'connected':
       return 'bg-emerald-500'
@@ -33,6 +50,8 @@ export function overallDotColor(
       return connectedCount > 0 ? 'bg-emerald-500' : 'bg-muted-foreground/40'
     case 'connecting':
       return 'bg-yellow-500'
+    case 'attention':
+      return 'bg-destructive'
     case 'disconnected':
       return 'bg-muted-foreground/40'
   }
@@ -45,11 +64,78 @@ export function sshStatusForOverall(status: SshConnectionStatus): HostStatus {
   return isConnectingSshStatus(status) ? 'connecting' : 'disconnected'
 }
 
+export function runtimeHostStatusForOverall(
+  state: RuntimeHostConnectionState,
+  blockedReason: RuntimeHostBlockedReason | undefined
+): OverallHostStatus {
+  return blockedReason ? 'blocked' : runtimeStatusForOverall(state)
+}
+
+export type RuntimeHostBlockedCopy = {
+  label: string
+  summary: string
+  explanation: string
+  /** Untranslated protocol detail, shown in the diagnostics box. */
+  detail?: string
+}
+
+export function runtimeHostBlockedCopy(
+  reason: RuntimeHostBlockedReason,
+  compatibility?: RuntimeCompatVerdict
+): RuntimeHostBlockedCopy {
+  if (reason === 'access-revoked') {
+    return {
+      label: translate(
+        'auto.components.status.bar.RuntimeHostStatusRow.access_revoked',
+        'Access revoked'
+      ),
+      summary: translate(
+        'auto.components.status.bar.RuntimeHostStatusRow.access_revoked_summary',
+        'This server revoked access for this computer'
+      ),
+      explanation: translate(
+        'auto.components.status.bar.RuntimeHostStatusRow.access_revoked_explanation',
+        'Re-pair with a new pairing link from the server to reconnect.'
+      )
+    }
+  }
+  return {
+    label: translate(
+      'auto.components.status.bar.RuntimeHostStatusRow.update_required',
+      'Update required'
+    ),
+    summary: translate(
+      'auto.components.status.bar.RuntimeHostStatusRow.update_required_summary',
+      'Orca versions are not compatible'
+    ),
+    explanation: translate(
+      'auto.components.status.bar.RuntimeHostStatusRow.update_required_explanation',
+      'Update Orca on this computer or on the server, then connect again.'
+    ),
+    ...(compatibility?.kind === 'blocked'
+      ? { detail: describeRuntimeCompatBlock(compatibility) }
+      : {})
+  }
+}
+
 export function runtimeHostConnectionDetail(
   remoteControl?: RemoteRuntimeSharedConnectionDiagnostics | null
 ): string | undefined {
   if (!remoteControl) {
     return undefined
+  }
+  if (
+    remoteControl.state === 'awaiting_ready' ||
+    remoteControl.state === 'awaiting_authenticated'
+  ) {
+    return undefined
+  }
+  if (remoteControl.state === 'reconnecting') {
+    return translate(
+      'auto.components.status.bar.SshStatusSegment.runtime_reconnect_attempt',
+      'Attempt {{value0}}',
+      { value0: String(remoteControl.reconnectAttempt + 1) }
+    )
   }
   if (remoteControl.lastError) {
     return remoteControl.lastError
@@ -59,13 +145,6 @@ export function runtimeHostConnectionDetail(
       'auto.components.status.bar.SshStatusSegment.runtime_last_close_reason',
       'Closed: {{value0}}',
       { value0: remoteControl.lastClose.reason }
-    )
-  }
-  if (remoteControl.state === 'reconnecting') {
-    return translate(
-      'auto.components.status.bar.SshStatusSegment.runtime_reconnect_attempt',
-      'Attempt {{value0}}',
-      { value0: String(remoteControl.reconnectAttempt + 1) }
     )
   }
   // Why: pending-request / subscription counts are internal RPC plumbing (e.g. a

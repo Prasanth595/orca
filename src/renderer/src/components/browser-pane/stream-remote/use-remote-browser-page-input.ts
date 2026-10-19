@@ -13,8 +13,9 @@ import type {
 } from './remote-browser-stream-tokens'
 import type { BrowserScreencastFrameMetadata } from '../../../../../shared/browser-screencast-protocol'
 import {
-  getPositiveFiniteNumber,
   getRemoteBrowserMouseButton,
+  mapRemoteBrowserClientPoint,
+  resolveRemoteBrowserCssViewport,
   type PendingRemoteBrowserWheel,
   type RemoteBrowserPaneNotice,
   type RemoteBrowserRuntimeTarget
@@ -28,7 +29,8 @@ export function useRemoteBrowserPageInputQueue(): {
   remoteWheelFrameRef: React.MutableRefObject<number | null>
   remoteWheelInFlightRef: React.MutableRefObject<boolean>
 } {
-  const remoteInputQueueRef = useRef<Promise<unknown>>(Promise.resolve())
+  const remoteInputQueueRef = useRef<Promise<unknown>>(undefined!)
+  remoteInputQueueRef.current ??= Promise.resolve()
   const pendingRemoteWheelRef = useRef<PendingRemoteBrowserWheel | null>(null)
   const remoteWheelFrameRef = useRef<number | null>(null)
   const remoteWheelInFlightRef = useRef(false)
@@ -106,28 +108,20 @@ export function useRemoteBrowserPageInput({
   const getRemoteImagePoint = useCallback(
     (event: { clientX: number; clientY: number }): { x: number; y: number } | null => {
       const image = imageRef.current
-      const viewport = remoteViewportRef.current
-      if (!image || !viewport) {
+      if (!image || !remoteViewportRef.current) {
         return null
       }
-      const rect = viewport.getBoundingClientRect()
-      const viewportWidth =
-        getPositiveFiniteNumber(remoteCssViewportSizeRef.current?.width) ??
-        getPositiveFiniteNumber(remoteViewportSizeRef.current?.width) ??
-        getPositiveFiniteNumber(frameMetadata?.deviceWidth) ??
-        image.naturalWidth
-      const viewportHeight =
-        getPositiveFiniteNumber(remoteCssViewportSizeRef.current?.height) ??
-        getPositiveFiniteNumber(remoteViewportSizeRef.current?.height) ??
-        getPositiveFiniteNumber(frameMetadata?.deviceHeight) ??
-        image.naturalHeight
-      if (rect.width <= 0 || rect.height <= 0 || viewportWidth <= 0 || viewportHeight <= 0) {
-        return null
-      }
-      return {
-        x: Math.round(((event.clientX - rect.left) / rect.width) * viewportWidth),
-        y: Math.round(((event.clientY - rect.top) / rect.height) * viewportHeight)
-      }
+      return mapRemoteBrowserClientPoint({
+        clientX: event.clientX,
+        clientY: event.clientY,
+        frameRect: image.getBoundingClientRect(),
+        cssViewport: resolveRemoteBrowserCssViewport({
+          cssViewportSize: remoteCssViewportSizeRef.current,
+          requestedViewportSize: remoteViewportSizeRef.current,
+          frameMetadata,
+          naturalSize: { width: image.naturalWidth, height: image.naturalHeight }
+        })
+      })
     },
     [frameMetadata, imageRef, remoteCssViewportSizeRef, remoteViewportRef, remoteViewportSizeRef]
   )
@@ -150,6 +144,15 @@ export function useRemoteBrowserPageInput({
     }
     event.preventDefault()
     image.focus()
+    // Why: a release over the letterbox gutter or outside the pane must still send mouseUp, or
+    // the host page keeps the button held.
+    if (typeof image.setPointerCapture === 'function') {
+      try {
+        image.setPointerCapture(event.pointerId)
+      } catch {
+        // The pointer is already gone; its release will not arrive anywhere to capture.
+      }
+    }
     setPaneNotice(null)
     enqueueRemoteInput(async () => {
       if (!isCurrentRemoteOperationToken(operationToken)) {

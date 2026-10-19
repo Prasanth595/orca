@@ -4,7 +4,21 @@ import type { WorkspaceLineage, WorktreeLineage } from '../shared/worktree/linea
 import type { GitWorktreeInfo } from '../shared/worktree/types'
 import { getRepoExecutionHostId } from '../shared/execution-host'
 import { isWorkspaceKey, parseWorkspaceKey, worktreeWorkspaceKey } from '../shared/workspace-scope'
+import { splitWorktreeId } from '../shared/worktree/id'
+import { worktreeRetentionPathComparisonKey } from './worktree-retention-path-comparison'
 import type { Store } from './persistence'
+import { isWslMoveRepoBlocked } from './persistence/moving-wsl-projects/wsl-move-background-backoff'
+
+type WorktreeLineagePruningStore = Pick<Store, 'getRepos' | 'getWorktreeMeta' | 'setWorktreeMeta'> &
+  Partial<
+    Pick<
+      Store,
+      | 'getAllWorktreeLineage'
+      | 'getAllWorkspaceLineage'
+      | 'removeWorktreeLineage'
+      | 'removeWorkspaceLineage'
+    >
+  >
 
 function worktreeIdBelongsToRepo(worktreeId: string, repoPrefix: string): boolean {
   return worktreeId.startsWith(repoPrefix)
@@ -35,11 +49,18 @@ function hasStoredRepoLineage(
 }
 
 export function pruneLineageForMissingRepoWorktrees(
-  store: Store,
+  store: WorktreeLineagePruningStore,
   repo: Repo,
-  gitWorktrees: GitWorktreeInfo[]
+  gitWorktrees: GitWorktreeInfo[],
+  options: {
+    platform?: NodeJS.Platform
+    preservedMetadataCandidateIds?: ReadonlySet<string>
+  } = {}
 ): void {
+  const { platform = process.platform, preservedMetadataCandidateIds } = options
+  // Mid-move a scan can miss paths that still exist; lineage waits for the move to settle.
   if (
+    isWslMoveRepoBlocked(repo) ||
     typeof store.getAllWorktreeLineage !== 'function' ||
     typeof store.removeWorktreeLineage !== 'function'
   ) {
@@ -56,6 +77,24 @@ export function pruneLineageForMissingRepoWorktrees(
     return
   }
   const liveIds = new Set(gitWorktrees.map((worktree) => `${repo.id}::${worktree.path}`))
+  const livePathKeys = new Set(
+    [repo.path, ...gitWorktrees.map(({ path }) => path)].map((pathValue) =>
+      worktreeRetentionPathComparisonKey(pathValue, platform)
+    )
+  )
+  const isLive = (worktreeId: string): boolean => {
+    if (liveIds.has(worktreeId) || preservedMetadataCandidateIds?.has(worktreeId)) {
+      return true
+    }
+    const worktreePath = splitWorktreeId(worktreeId)?.worktreePath
+    if (!worktreePath) {
+      return false
+    }
+    if (livePathKeys.has(worktreeRetentionPathComparisonKey(worktreePath, platform))) {
+      return true
+    }
+    return false
+  }
   const expectedHostId = getRepoExecutionHostId(repo)
   const repoOwners = store.getRepos().filter((candidate) => candidate.id === repo.id)
   const canMutateWorktree = (worktreeId: string): boolean => {
@@ -68,7 +107,7 @@ export function pruneLineageForMissingRepoWorktrees(
       childScope?.type === 'worktree' &&
       worktreeIdBelongsToRepo(childScope.worktreeId, repoPrefix) &&
       canMutateWorktree(childScope.worktreeId) &&
-      !liveIds.has(childScope.worktreeId) &&
+      !isLive(childScope.worktreeId) &&
       isWorkspaceKey(childWorkspaceKey)
     ) {
       store.removeWorkspaceLineage?.(childWorkspaceKey)
@@ -78,7 +117,7 @@ export function pruneLineageForMissingRepoWorktrees(
     if (
       worktreeIdBelongsToRepo(childId, repoPrefix) &&
       canMutateWorktree(childId) &&
-      !liveIds.has(childId)
+      !isLive(childId)
     ) {
       // Why: a proven-missing path must not transfer its lineage to a future checkout at that path.
       store.removeWorktreeLineage(childId)
@@ -87,10 +126,10 @@ export function pruneLineageForMissingRepoWorktrees(
     if (
       worktreeIdBelongsToRepo(lineage.parentWorktreeId, repoPrefix) &&
       canMutateWorktree(lineage.parentWorktreeId) &&
-      !liveIds.has(lineage.parentWorktreeId)
+      !isLive(lineage.parentWorktreeId)
     ) {
       const parentMeta = store.getWorktreeMeta(lineage.parentWorktreeId)
-      if (!parentMeta || parentMeta.instanceId === lineage.parentWorktreeInstanceId) {
+      if (parentMeta?.instanceId === lineage.parentWorktreeInstanceId) {
         // Why: rotate a proven-missing parent's identity once so path reuse cannot validate old lineage.
         store.setWorktreeMeta(lineage.parentWorktreeId, { instanceId: randomUUID() })
       }

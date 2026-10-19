@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   clearTerminalProviderSnapshotCapabilities,
   synchronizeTerminalProviderSnapshotCapabilities
@@ -11,12 +11,17 @@ import {
   canParkTerminalWorktreeRenderers,
   isParkRestorableTerminalPty,
   isSnapshotBackedTerminalPty,
+  resetPairedRuntimeParkingEnvironmentIdsCacheForTest,
   selectPairedRuntimeParkingEnvironmentIds,
   selectColdParkedTerminalTabs,
   selectColdParkedTerminalWorktrees
 } from './terminal-hidden-view-parking'
 
 describe('selectPairedRuntimeParkingEnvironmentIds', () => {
+  beforeEach(() => {
+    resetPairedRuntimeParkingEnvironmentIdsCacheForTest()
+  })
+
   it('selects only reachable hosts advertising the paired parking contract', () => {
     const statuses = new Map([
       [
@@ -28,6 +33,39 @@ describe('selectPairedRuntimeParkingEnvironmentIds', () => {
     ])
 
     expect(selectPairedRuntimeParkingEnvironmentIds(statuses)).toEqual(new Set(['capable']))
+  })
+
+  it('shares the capability Set across status-only changes and replaces it on membership changes', () => {
+    const first = selectPairedRuntimeParkingEnvironmentIds(
+      new Map([
+        ['runtime-a', { status: { capabilities: ['terminal.paired-parking.v1'] } }],
+        ['runtime-b', { status: { capabilities: ['terminal.multiplex.v1'] } }]
+      ])
+    )
+    const statusOnlyUpdate = selectPairedRuntimeParkingEnvironmentIds(
+      new Map([
+        [
+          'runtime-a',
+          {
+            status: {
+              capabilities: ['terminal.paired-parking.v1'],
+              runtimeId: 'peer-a-reconnected'
+            }
+          }
+        ],
+        ['runtime-b', { status: { capabilities: ['terminal.multiplex.v1'], appVersion: '1.5.0' } }]
+      ])
+    )
+    expect(statusOnlyUpdate).toBe(first)
+
+    const capabilityUpdate = selectPairedRuntimeParkingEnvironmentIds(
+      new Map([
+        ['runtime-a', { status: { capabilities: ['terminal.paired-parking.v1'] } }],
+        ['runtime-b', { status: { capabilities: ['terminal.paired-parking.v1'] } }]
+      ])
+    )
+    expect(capabilityUpdate).not.toBe(first)
+    expect(capabilityUpdate).toEqual(new Set(['runtime-a', 'runtime-b']))
   })
 })
 
@@ -385,24 +423,6 @@ describe('selectColdParkedTerminalWorktrees', () => {
     })
 
     expect(selected).toEqual(new Set())
-  })
-
-  it('exempts only the last-active worktree from the cap, counting it against the limit', () => {
-    const selected = selectColdParkedTerminalWorktrees({
-      worktrees: [
-        localCandidate('wt-1', nowMs - TERMINAL_WORKTREE_PARK_DELAY_MS),
-        localCandidate('wt-2', nowMs - TERMINAL_WORKTREE_PARK_DELAY_MS - 1),
-        localCandidate('wt-3', nowMs - TERMINAL_WORKTREE_PARK_DELAY_MS - 2)
-      ],
-      pendingStartupByTabId: {},
-      parkingEnabled: true,
-      nowMs,
-      // Why: wt-1 (last-active) takes one of the two warm slots, so only wt-2
-      // fits the remaining slot and wt-3 parks.
-      hotRetainLimit: 2
-    })
-
-    expect(selected).toEqual(new Set(['wt-3']))
   })
 
   it('selects nothing when the settings kill switch disables parking', () => {

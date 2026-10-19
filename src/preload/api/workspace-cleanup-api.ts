@@ -1,7 +1,5 @@
 import type {
   WorkspaceCleanupDismissArgs,
-  WorkspaceCleanupLocalProcessArgs,
-  WorkspaceCleanupLocalProcessResult,
   WorkspaceCleanupScanArgs,
   WorkspaceCleanupScanProgress,
   WorkspaceCleanupScanResult,
@@ -13,6 +11,7 @@ import type {
   WorkspaceSpaceAnalyzeResult,
   WorkspaceSpaceScanProgress
 } from '../../shared/workspace-space-types'
+import type { ExecutionHostId } from '../../shared/execution-host'
 
 export type WorkspaceCleanupApi = {
   scan: (
@@ -24,9 +23,6 @@ export type WorkspaceCleanupApi = {
   getCachedScan: () => Promise<WorkspaceCleanupScanResult | null>
   dismiss: (args: WorkspaceCleanupDismissArgs) => Promise<void>
   clearDismissals: () => Promise<void>
-  hasKillableLocalProcesses: (
-    args: WorkspaceCleanupLocalProcessArgs
-  ) => Promise<WorkspaceCleanupLocalProcessResult>
   beginRemovalSnapshotPruneBatch?: (args: WorkspaceCleanupSnapshotPruneBatchArgs) => Promise<void>
   recordRemovalSnapshotPrune?: (args: WorkspaceCleanupSnapshotPruneRecordArgs) => Promise<void>
   finishRemovalSnapshotPruneBatch?: (args: WorkspaceCleanupSnapshotPruneBatchArgs) => Promise<void>
@@ -38,4 +34,19 @@ export type WorkspaceSpaceApi = {
   getCachedAnalysis: () => Promise<WorkspaceSpaceAnalysis | null>
   cancel: () => Promise<boolean>
   onProgress: (callback: (progress: WorkspaceSpaceScanProgress) => void) => () => void
+  openWindow?: () => Promise<void>
+  closeWindow?: () => Promise<void>
+  publishWindowState?: (state: unknown) => Promise<void>
+  requestWindowState?: () => Promise<void>
+  onWindowStateRequested?: (callback: () => void) => () => void
+  onWindowClosed?: (callback: () => void) => () => void
+  onWindowState?: (callback: (state: unknown) => void) => () => void
+  revealWorktree?: (worktreeId: string, executionHostId?: ExecutionHostId) => Promise<void>
+  onRevealWorktree?: (
+    callback: (worktreeId: string, executionHostId?: ExecutionHostId) => void
+  ) => () => void
+  requestWorktreeRefresh?: () => Promise<void>
+  onWorktreeRefreshRequested?: (callback: () => void) => () => void
+  publishWindowAnalysis?: (analysis: WorkspaceSpaceAnalysis) => Promise<void>
+  onWindowAnalysis?: (callback: (analysis: WorkspaceSpaceAnalysis) => void) => () => void
 }

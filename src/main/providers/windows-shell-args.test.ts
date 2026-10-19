@@ -308,6 +308,29 @@ describe('resolveWindowsShellLaunchArgs', () => {
     expect(result.startupCommandDeliveredInShellArgs).toBeUndefined()
   })
 
+  it('gives a plain Git Bash tab the same rcfile as one with a startup command', () => {
+    const plain = resolveWindowsShellLaunchArgs(
+      'C:\\Program Files\\Git\\bin\\bash.exe',
+      'C:\\Users\\alice',
+      'C:\\Users\\alice'
+    )
+    const launched = resolveWindowsShellLaunchArgs(
+      'C:\\Program Files\\Git\\bin\\bash.exe',
+      'C:\\Users\\alice',
+      'C:\\Users\\alice',
+      undefined,
+      "codex 'fix the bug'"
+    )
+
+    expect(plain.shellArgs).toEqual(launched.shellArgs)
+    // Why: only the rcfile carries the account-following claude function and codex --no-daemon wrapper.
+    const rcfile = readFileSync(getGitBashRcfilePath(plain.shellArgs[1]), 'utf8')
+    expect(rcfile).toContain('function claude {')
+    expect(rcfile).toContain('set -- --no-daemon "$@"')
+    expect(rcfile).toContain('source "$HOME/.bash_profile"')
+    expect(launched.startupCommandDeliveredInShellArgs).toBeUndefined()
+  })
+
   it('quotes a spaced preflight path through each shell environment', () => {
     const cmd = resolveWindowsShellLaunchArgs(
       'cmd.exe',
@@ -390,7 +413,7 @@ describe('resolveWindowsShellLaunchArgs', () => {
     const zshEnv = readFileSync(join(getShellReadyWrapperRoot(), 'zsh', '.zshenv'), 'utf8')
     for (const wrapperFile of [bashRcfile, zshEnv]) {
       expect(wrapperFile).toContain('command omp --extension "${ORCA_OMP_STATUS_EXTENSION}" "$@"')
-      expect(wrapperFile).toContain('omp() { __orca_omp "$@"; }')
+      expect(wrapperFile).toContain('function omp { __orca_omp "$@"; }')
       expect(wrapperFile).not.toContain('prime-agent()')
       expect(wrapperFile).not.toContain('__orca_prime_agent')
       expect(wrapperFile).not.toContain('ORCA_PRIME_AGENT_STATUS_EXTENSION')

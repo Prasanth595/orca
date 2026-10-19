@@ -1,4 +1,10 @@
 import {
+  createNormalizedAiVaultScopeCwdMatcher,
+  sessionFileExecutionNamespace
+} from '../../../../shared/ai-vault-scope-cwd-match'
+import { resolveActiveProjectKey } from './ai-vault-project-key'
+import { toAiVaultProjectKey } from '../../../../shared/ai-vault-project-key'
+import {
   getRepoExecutionHostId,
   LOCAL_EXECUTION_HOST_ID,
   normalizeExecutionHostId,
@@ -9,18 +15,14 @@ import type { AiVaultSession } from '../../../../shared/ai-vault-types'
 import type { ProjectHostSetup } from '../../../../shared/project-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
-import {
-  createNormalizedPathInsideOrEqualMatcher,
-  normalizeRuntimePathForComparison
-} from '../../../../shared/cross-platform-path'
+import { normalizeRuntimePathForComparison } from '../../../../shared/cross-platform-path'
 import {
   folderGroupKey,
   folderLabel,
   type AiVaultSessionProject
 } from '../../../../shared/ai-vault-session-filters'
 
-// Why: the plain project descriptor moved to /shared (so the lifted filter core
-// stays renderer-free). Re-export it here for renderer import parity.
+// Preserve renderer imports of the renderer-free descriptor.
 export type { AiVaultSessionProject } from '../../../../shared/ai-vault-session-filters'
 
 export type AiVaultProjectContext = {
@@ -37,7 +39,7 @@ type SessionProjectCandidate = {
   projectId: string | null
   repoId: string | null
   // Precomputed so a 500-session pass doesn't re-normalize every root per session.
-  ownsNormalizedCwd: (normalizedCwd: string) => boolean
+  ownsNormalizedCwd: ReturnType<typeof createNormalizedAiVaultScopeCwdMatcher>
 }
 
 type ProjectResolverArgs = {
@@ -92,25 +94,26 @@ export function buildAiVaultSessionProjectById({
     setupByRepoId
   )
   const sessionProjectById = new Map<string, AiVaultSessionProject>()
+  const projectsByHostAndCwd = new Map<
+    ExecutionHostId | null,
+    Map<string | null, AiVaultSessionProject>
+  >()
   for (const session of sessions) {
-    sessionProjectById.set(
-      session.id,
-      resolveSessionProject(session, candidates, projectLabelByKey)
-    )
+    const host = normalizeExecutionHostId(session.executionHostId)
+    let projectsByCwd = projectsByHostAndCwd.get(host)
+    if (!projectsByCwd) {
+      projectsByCwd = new Map()
+      projectsByHostAndCwd.set(host, projectsByCwd)
+    }
+    const cwdKey = JSON.stringify([sessionFileExecutionNamespace(session.filePath), session.cwd])
+    let project = projectsByCwd.get(cwdKey)
+    if (!project) {
+      project = resolveSessionProject(session, candidates, projectLabelByKey)
+      projectsByCwd.set(cwdKey, project)
+    }
+    sessionProjectById.set(session.id, { ...project })
   }
   return sessionProjectById
-}
-
-export function toAiVaultProjectKey(
-  projectId: string | null | undefined,
-  repoId?: string | null
-): string | null {
-  if (projectId) {
-    // Why: legacy projections can already use repo-prefixed project ids; wrapping
-    // them again would split active scope and resolved session keys.
-    return projectId.startsWith('repo:') ? projectId : `project:${projectId}`
-  }
-  return repoId ? `repo:${repoId}` : null
 }
 
 function buildSetupByRepoId(
@@ -234,7 +237,7 @@ function makeProjectCandidate(
   return {
     ...rest,
     normalizedPath,
-    ownsNormalizedCwd: createNormalizedPathInsideOrEqualMatcher(normalizedPath)
+    ownsNormalizedCwd: createNormalizedAiVaultScopeCwdMatcher([path])
   }
 }
 
@@ -265,7 +268,9 @@ function resolveSessionProject(
   }
 
   const normalizedCwd = normalizeRuntimePathForComparison(cwd)
-  const matches = candidates.filter((candidate) => candidate.ownsNormalizedCwd(normalizedCwd))
+  const matches = candidates.filter((candidate) =>
+    candidate.ownsNormalizedCwd(normalizedCwd, session.filePath)
+  )
   const sessionHostId = normalizeExecutionHostId(session.executionHostId)
   const hostMatches = sessionHostId
     ? matches.filter((candidate) => candidate.hostKey === sessionHostId)
@@ -318,23 +323,4 @@ function folderProject(cwd: string): AiVaultSessionProject {
     key: folderGroupKey(cwd),
     label: folderLabel(cwd)
   }
-}
-
-function resolveActiveProjectKey(
-  activeRepo: Repo | null,
-  activeWorktree: Worktree | null,
-  setupByRepoId: ReadonlyMap<string, ProjectHostSetup>
-): string | null {
-  if (activeWorktree?.projectId) {
-    return toAiVaultProjectKey(activeWorktree.projectId, activeWorktree.repoId)
-  }
-
-  const setup =
-    (activeRepo ? setupByRepoId.get(activeRepo.id) : null) ??
-    (activeWorktree ? setupByRepoId.get(activeWorktree.repoId) : null)
-  if (setup) {
-    return toAiVaultProjectKey(setup.projectId, setup.repoId || activeRepo?.id)
-  }
-
-  return toAiVaultProjectKey(null, activeRepo?.id ?? activeWorktree?.repoId ?? null)
 }

@@ -1,3 +1,4 @@
+import '../unused-default-rpc-methods.test-fixture'
 import { describe, expect, it, vi } from 'vitest'
 import { RpcDispatcher } from '../dispatcher'
 import type { RpcRequest } from '../core'
@@ -9,6 +10,26 @@ function makeRequest(method: string, params?: unknown): RpcRequest {
 }
 
 describe('gitlab RPC methods', () => {
+  it("lists a repo's assignable users on the server that owns the repo", async () => {
+    const users = [
+      { id: 7, username: 'ana', name: 'Ana', avatarUrl: 'https://gitlab.example.com/ana.png' }
+    ]
+    const listGitLabRepoAssignableUsers = vi.fn().mockResolvedValue(users)
+    const runtime = { getRuntimeId: () => 'test-runtime', listGitLabRepoAssignableUsers }
+    const dispatcher = new RpcDispatcher({
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: these methods dispatch only listGitLabRepoAssignableUsers.
+      runtime: runtime as unknown as OrcaRuntimeService,
+      methods: GITLAB_METHODS
+    })
+
+    const response = await dispatcher.dispatch(
+      makeRequest('gitlab.listAssignableUsers', { repo: 'id:repo-1' })
+    )
+
+    expect(listGitLabRepoAssignableUsers).toHaveBeenCalledWith('id:repo-1')
+    expect(response).toMatchObject({ ok: true, result: users })
+  })
+
   it('routes GitLab task queries and mutations to the runtime server', async () => {
     const runtime = {
       getRuntimeId: () => 'test-runtime',
@@ -64,7 +85,8 @@ describe('gitlab RPC methods', () => {
         repo: 'id:repo-1',
         state: 'opened',
         assignee: '@me',
-        limit: 50
+        limit: 50,
+        page: 2
       })
     )
     await dispatcher.dispatch(
@@ -202,7 +224,7 @@ describe('gitlab RPC methods', () => {
       25,
       'bug'
     )
-    expect(runtime.listGitLabRepoIssues).toHaveBeenCalledWith('id:repo-1', 'opened', '@me', 50)
+    expect(runtime.listGitLabRepoIssues).toHaveBeenCalledWith('id:repo-1', 'opened', '@me', 50, 2)
     expect(runtime.createGitLabRepoIssue).toHaveBeenCalledWith('id:repo-1', 'Fix bug', 'Details')
     expect(runtime.listGitLabRepoTodos).toHaveBeenCalledWith('id:repo-1')
     expect(runtime.listGitLabRepoLabels).toHaveBeenCalledWith('id:repo-1')
@@ -280,6 +302,30 @@ describe('gitlab RPC methods', () => {
     )
   })
 
+  it('accepts the negotiated ready-for-review update field', async () => {
+    const runtime = {
+      getRuntimeId: () => 'test-runtime',
+      updateGitLabRepoMR: vi.fn().mockResolvedValue({ ok: true })
+    } as unknown as OrcaRuntimeService
+    const dispatcher = new RpcDispatcher({ runtime, methods: GITLAB_METHODS })
+
+    const response = await dispatcher.dispatch(
+      makeRequest('gitlab.updateMR', {
+        repo: 'id:repo-1',
+        iid: 8,
+        updates: { readyForReview: true }
+      })
+    )
+
+    expect(runtime.updateGitLabRepoMR).toHaveBeenCalledWith(
+      'id:repo-1',
+      8,
+      { readyForReview: true },
+      undefined
+    )
+    expect(response).toMatchObject({ ok: true, result: { ok: true } })
+  })
+
   it('normalizes GitLab issue list arguments to match desktop preload behavior', async () => {
     const runtime = {
       getRuntimeId: () => 'test-runtime',
@@ -309,9 +355,17 @@ describe('gitlab RPC methods', () => {
       'id:repo-1',
       'closed',
       undefined,
-      100
+      100,
+      1
     )
-    expect(runtime.listGitLabRepoIssues).toHaveBeenNthCalledWith(2, 'id:repo-1', 'opened', '@me', 1)
+    expect(runtime.listGitLabRepoIssues).toHaveBeenNthCalledWith(
+      2,
+      'id:repo-1',
+      'opened',
+      '@me',
+      1,
+      1
+    )
   })
 
   // Regression for #7732: the WS/relay transports close the connection on frames

@@ -3,6 +3,7 @@ import type { NativeChatMessage } from '../../../src/shared/native-chat-types'
 import {
   createMobileNativeChatStreamingGate,
   deriveMobileNativeChatStreaming,
+  mobileNativeChatStreamPreview,
   type MobileNativeChatStreamingGate
 } from './mobile-native-chat-streaming-gate'
 
@@ -33,6 +34,40 @@ function run(ticks: { folded: NativeChatMessage[]; text?: string; live?: boolean
   return { gate, results }
 }
 
+describe('mobileNativeChatStreamPreview', () => {
+  it('drops a preview the provider flagged as tool output', () => {
+    // Regression: a Bash result was published as `lastAssistantMessage` for the status
+    // card, then rendered here as an un-collapsed assistant bubble that no catch-up rule
+    // could retire, so it sat in the chat for the rest of the turn.
+    expect(
+      mobileNativeChatStreamPreview(
+        {
+          lastAssistantMessage: 'Exit code 1\nimport { Foo }',
+          lastAssistantMessageIsToolOutput: true
+        },
+        true
+      )
+    ).toBeUndefined()
+  })
+
+  it('passes assistant prose through while working', () => {
+    expect(mobileNativeChatStreamPreview({ lastAssistantMessage: 'Working on it' }, true)).toBe(
+      'Working on it'
+    )
+  })
+
+  it('drops any preview once the turn is not working', () => {
+    expect(
+      mobileNativeChatStreamPreview({ lastAssistantMessage: 'Working on it' }, false)
+    ).toBeUndefined()
+  })
+
+  it('tolerates a missing status', () => {
+    expect(mobileNativeChatStreamPreview(null, true)).toBeUndefined()
+    expect(mobileNativeChatStreamPreview(undefined, true)).toBeUndefined()
+  })
+})
+
 describe('deriveMobileNativeChatStreaming', () => {
   it('shows a genuine reply that repeats the previous turn as a prefix', () => {
     const prior = [assistant('a1', 'The tests pass.')]
@@ -54,6 +89,33 @@ describe('deriveMobileNativeChatStreaming', () => {
       { folded: landed, text: 'fresh answer' }
     ])
     expect(results).toEqual([null, 'fresh answer', null])
+  })
+
+  it('keeps the bubble hidden once a thought lands below the streamed reply', () => {
+    const asked: NativeChatMessage[] = [
+      {
+        id: 'u1',
+        role: 'user',
+        blocks: [{ type: 'text', text: 'look' }],
+        timestamp: 0,
+        source: 'transcript'
+      }
+    ]
+    const landed = [...asked, assistant('a1', 'Checking the notes file now.')]
+    const thought: NativeChatMessage = {
+      id: 'a1:reasoning-2',
+      role: 'reasoning',
+      blocks: [{ type: 'text', text: 'The file is short.' }],
+      timestamp: 0,
+      source: 'transcript'
+    }
+    const { results } = run([
+      { folded: asked },
+      { folded: asked, text: 'Checking the notes file now.', live: true },
+      { folded: landed, text: 'Checking the notes file now.', live: true },
+      { folded: [...landed, thought], text: 'Checking the notes file now.', live: true }
+    ])
+    expect(results).toEqual([null, 'Checking the notes file now.', null, null])
   })
 
   it('suppresses an identical repeated reply once its own turn lands', () => {

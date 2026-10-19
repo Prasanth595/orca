@@ -6,6 +6,7 @@ type TerminalTabReconnectState = Pick<
   | 'lastKnownRelayPtyIdByTabId'
   | 'deferredSshSessionIdsByTabId'
   | 'pendingReconnectPtyIdByTabId'
+  | 'unverifiedPtyLossTabIds'
 >
 
 type OrphanTerminalDetectionState = Pick<AppState, 'tabsByWorktree' | 'unifiedTabsByWorktree'> &
@@ -44,7 +45,6 @@ type OrphanTerminalCleanupState = Pick<
   | 'terminalLayoutsByTabId'
   | 'pendingStartupByTabId'
   | 'pendingInitialCwdByTabId'
-  | 'pendingSetupSplitByTabId'
   | 'pendingIssueCommandSplitByTabId'
   | 'automaticAgentResumeClaimsByTabId'
   | 'nativeChatLaunchPromptByTabId'
@@ -72,6 +72,12 @@ export function getOrphanTerminalIds(
         if (unifiedTerminalEntityIds.has(tab.id)) {
           return false
         }
+        // A missing PTY is not proof that the user closed the tab: the host
+        // may have gone away and emitted a synthetic exit. Keep the row until
+        // a replacement binds or the user explicitly closes it.
+        if (state.unverifiedPtyLossTabIds[tab.id]) {
+          return false
+        }
         // Why: a tab is orphaned only when it owns NO live/reconnecting PTY; a
         // tab whose session survives in a reconnect map (SSH relay / daemon
         // reattach) is alive and must not be swept before reconnect rebinds it
@@ -96,7 +102,6 @@ export function buildOrphanTerminalCleanupPatch(
   | 'terminalLayoutsByTabId'
   | 'pendingStartupByTabId'
   | 'pendingInitialCwdByTabId'
-  | 'pendingSetupSplitByTabId'
   | 'pendingIssueCommandSplitByTabId'
   | 'automaticAgentResumeClaimsByTabId'
   | 'nativeChatLaunchPromptByTabId'
@@ -116,7 +121,6 @@ export function buildOrphanTerminalCleanupPatch(
       terminalLayoutsByTabId: state.terminalLayoutsByTabId,
       pendingStartupByTabId: state.pendingStartupByTabId,
       pendingInitialCwdByTabId: state.pendingInitialCwdByTabId,
-      pendingSetupSplitByTabId: state.pendingSetupSplitByTabId,
       pendingIssueCommandSplitByTabId: state.pendingIssueCommandSplitByTabId,
       automaticAgentResumeClaimsByTabId: state.automaticAgentResumeClaimsByTabId,
       nativeChatLaunchPromptByTabId: state.nativeChatLaunchPromptByTabId,
@@ -138,7 +142,6 @@ export function buildOrphanTerminalCleanupPatch(
   const nextTerminalLayoutsByTabId = { ...state.terminalLayoutsByTabId }
   const nextPendingStartupByTabId = { ...state.pendingStartupByTabId }
   const nextPendingInitialCwdByTabId = { ...state.pendingInitialCwdByTabId }
-  const nextPendingSetupSplitByTabId = { ...state.pendingSetupSplitByTabId }
   const nextPendingIssueCommandSplitByTabId = { ...state.pendingIssueCommandSplitByTabId }
   const nextAutomaticAgentResumeClaimsByTabId = {
     ...state.automaticAgentResumeClaimsByTabId
@@ -165,7 +168,6 @@ export function buildOrphanTerminalCleanupPatch(
     delete nextTerminalLayoutsByTabId[orphanTabId]
     delete nextPendingStartupByTabId[orphanTabId]
     delete nextPendingInitialCwdByTabId[orphanTabId]
-    delete nextPendingSetupSplitByTabId[orphanTabId]
     delete nextPendingIssueCommandSplitByTabId[orphanTabId]
     delete nextAutomaticAgentResumeClaimsByTabId[orphanTabId]
     delete nextNativeChatLaunchPromptByTabId[orphanTabId]
@@ -196,7 +198,6 @@ export function buildOrphanTerminalCleanupPatch(
     terminalLayoutsByTabId: nextTerminalLayoutsByTabId,
     pendingStartupByTabId: nextPendingStartupByTabId,
     pendingInitialCwdByTabId: nextPendingInitialCwdByTabId,
-    pendingSetupSplitByTabId: nextPendingSetupSplitByTabId,
     pendingIssueCommandSplitByTabId: nextPendingIssueCommandSplitByTabId,
     automaticAgentResumeClaimsByTabId: nextAutomaticAgentResumeClaimsByTabId,
     nativeChatLaunchPromptByTabId: nextNativeChatLaunchPromptByTabId,

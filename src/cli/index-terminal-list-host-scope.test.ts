@@ -88,7 +88,10 @@ describe('orca terminal list host scope', () => {
     expect(printed.result.terminals[0].executionHostId).toBe('ssh:box-1')
     expect(printed.result.hostScope).toEqual({
       hostIds: ['ssh:box-1'],
-      omittedHostIds: ['local']
+      omittedHostIds: ['local'],
+      // `terminal list` takes no --host, so no flag reaches the answering runtime's own hosts
+      // (#29901); see index-omitted-host-scope-selectors.test.ts.
+      omittedHostSelectors: [{ hostId: 'local', selector: null }]
     })
   })
 

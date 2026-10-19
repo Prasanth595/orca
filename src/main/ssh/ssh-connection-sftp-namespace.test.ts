@@ -7,6 +7,10 @@ import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as SystemSshArgs from './system-transport/system-ssh-args'
+import type * as SystemSshFileBinaryTransfer from './system-transport/system-ssh-file-binary-transfer'
+import type * as SystemSshFileTransfer from './system-transport/system-ssh-file-transfer'
+import type * as SshGConfigResolution from './config/ssh-g-config-resolution'
 
 vi.mock('ssh2', () => ({
   BaseAgent: class {},
@@ -15,25 +19,40 @@ vi.mock('ssh2', () => ({
   utils: { parseKey: vi.fn() }
 }))
 
-vi.mock('./ssh-system-fallback', () => ({
-  getOrcaControlSocketPath: vi.fn().mockReturnValue(null),
+vi.mock('./system-transport/system-ssh-args', async (importOriginal) => ({
+  ...(await importOriginal<typeof SystemSshArgs>()),
+  getOrcaControlSocketPath: vi.fn().mockReturnValue(null)
+}))
+vi.mock('./system-transport/system-ssh-command', () => ({
   spawnSystemSsh: vi.fn(),
-  spawnSystemSshCommand: vi.fn(),
+  spawnSystemSshCommand: vi.fn()
+}))
+vi.mock('./system-transport/system-ssh-file-binary-transfer', async (importOriginal) => ({
+  ...(await importOriginal<typeof SystemSshFileBinaryTransfer>()),
   downloadFileViaSystemSsh: vi.fn().mockResolvedValue(undefined),
-  uploadDirectoryViaSystemSsh: vi.fn().mockResolvedValue(undefined),
   uploadFileViaSystemSsh: vi.fn().mockResolvedValue(undefined),
-  writeBufferViaSystemSsh: vi.fn().mockResolvedValue(undefined),
+  writeBufferViaSystemSsh: vi.fn().mockResolvedValue(undefined)
+}))
+vi.mock('./system-transport/system-ssh-file-transfer', async (importOriginal) => ({
+  ...(await importOriginal<typeof SystemSshFileTransfer>()),
+  uploadDirectoryViaSystemSsh: vi.fn().mockResolvedValue(undefined),
   writeFileViaSystemSsh: vi.fn().mockResolvedValue(undefined)
 }))
 
 vi.mock('./ssh-control-socket', () => ({ removeControlSocketPath: vi.fn() }))
-vi.mock('./ssh-config-parser', () => ({ resolveWithSshG: vi.fn().mockResolvedValue(null) }))
+vi.mock('./config/ssh-g-config-resolution', async (importOriginal) => ({
+  ...(await importOriginal<typeof SshGConfigResolution>()),
+  resolveWithSshG: vi.fn().mockResolvedValue(null)
+}))
 
 import { SshConnection } from './ssh-connection'
 import type { SftpNamespacePathMapping } from './sftp-namespace-resolution'
 import { getRemoteHostPlatform } from './ssh-remote-platform'
 import { isSshSessionLimitError } from './ssh-session-limit-error'
-import { uploadDirectoryViaSystemSsh, writeFileViaSystemSsh } from './ssh-system-fallback'
+import {
+  uploadDirectoryViaSystemSsh,
+  writeFileViaSystemSsh
+} from './system-transport/system-ssh-file-transfer'
 import type { SshTarget } from '../../shared/ssh-types'
 
 const SHELL_HOME = '/var/services/homes/alice'
@@ -296,25 +315,33 @@ describe('SshConnection SFTP namespace resolution', () => {
   })
 
   it('aborts a transfer stuck in discovery and reports a confirmed channel close', async () => {
-    const sftp = createFakeSftp({ pendingRealpath: true })
-    const conn = connectedTo([sftp])
-    const controller = new AbortController()
+    vi.useFakeTimers()
+    try {
+      const sftp = createFakeSftp({ pendingRealpath: true })
+      const conn = connectedTo([sftp])
+      const controller = new AbortController()
 
-    const write = conn.writeFile(`${SHELL_RELAY_DIR}/.version`, 'v', {
-      hostPlatform: linux,
-      sftpNamespace: fileNamespace('.version'),
-      signal: controller.signal
-    })
-    await vi.waitFor(() => expect(sftp.realpathCalls).toHaveLength(1))
-    controller.abort()
+      const write = conn
+        .writeFile(`${SHELL_RELAY_DIR}/.version`, 'v', {
+          hostPlatform: linux,
+          sftpNamespace: fileNamespace('.version'),
+          signal: controller.signal
+        })
+        .catch((err: Error) => err)
+      await vi.waitFor(() => expect(sftp.realpathCalls).toHaveLength(1))
+      controller.abort()
+      await vi.advanceTimersByTimeAsync(5_000)
 
-    const error = (await write.catch((err: Error) => err)) as Error & {
-      sshChannelCloseConfirmed?: boolean
+      const error = (await write) as Error & {
+        sshChannelCloseConfirmed?: boolean
+      }
+      expect(error.name).toBe('AbortError')
+      expect(error.sshChannelCloseConfirmed).toBe(true)
+      expect(sftp.endCalls).toBe(1)
+      expect(sftp.writtenPaths).toEqual([])
+    } finally {
+      vi.useRealTimers()
     }
-    expect(error.name).toBe('AbortError')
-    expect(error.sshChannelCloseConfirmed).toBe(true)
-    expect(sftp.endCalls).toBe(1)
-    expect(sftp.writtenPaths).toEqual([])
   })
 
   it('reports an unconfirmed close when the aborted session never closes', async () => {
@@ -389,7 +416,9 @@ describe('SshConnection SFTP namespace resolution', () => {
           })
           .catch((err: Error) => err)
         await vi.waitFor(() => expect(sftp.pendingRealpathCallbacks).toHaveLength(1))
+        vi.useFakeTimers()
         controller.abort()
+        await vi.advanceTimersByTimeAsync(5_000)
 
         const error = (await write) as Error & { sshChannelCloseConfirmed?: boolean }
         expect(error).toMatchObject({
@@ -398,13 +427,15 @@ describe('SshConnection SFTP namespace resolution', () => {
         })
 
         completeRealpath(sftp.pendingRealpathCallbacks[0]!)
-        await new Promise<void>((resolve) => setImmediate(resolve))
+        await Promise.resolve()
+        await Promise.resolve()
 
         expect(unhandledRejection).not.toHaveBeenCalled()
         expect(sftp.writtenPaths).toEqual([])
         expect(sftp.endCalls).toBe(1)
       } finally {
         process.off('unhandledRejection', unhandledRejection)
+        vi.useRealTimers()
       }
     }
   )

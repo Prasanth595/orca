@@ -38,6 +38,7 @@ vi.mock('@/store', () => ({
     selector({
       agentActivityDisplayMode: 'compact',
       acknowledgedAgentsByPaneKey: {},
+      retainedAgentsByPaneKey: {},
       cacheTimerByKey: {},
       dropAgentStatus: vi.fn(),
       dismissRetainedAgent: vi.fn(),
@@ -56,7 +57,7 @@ vi.mock('./useWorktreeAgentRows', () => ({
   useWorktreeAgentRows: vi.fn(() => mockAgents)
 }))
 
-vi.mock('@/components/dashboard/useNow', () => ({
+vi.mock('@/hooks/use-now', () => ({
   useNow: vi.fn(() => 2000)
 }))
 

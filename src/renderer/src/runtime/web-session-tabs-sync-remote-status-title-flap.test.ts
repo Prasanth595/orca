@@ -58,11 +58,9 @@ import {
   registerRendererOwnedAgentStatusPane,
   resetRendererOwnedAgentStatusPanesForTests
 } from '../components/terminal-pane/renderer-owned-agent-status-registry'
-import {
-  applyWebSessionTabsSnapshot,
-  resetWebSessionTabsSnapshotFreshnessForTests,
-  shouldApplyWebSessionTabsSnapshot
-} from './web-session-tabs-sync'
+import { applyWebSessionTabsSnapshot } from './web-session-tabs-sync/snapshot-api'
+import { resetWebSessionTabsSnapshotFreshnessForTests } from './web-session-tabs-sync/tracking-lifecycle'
+import { shouldApplyWebSessionTabsSnapshot } from './web-session-tabs-sync/tracking-decisions'
 
 // Why: web-session-tabs-sync imports the app-level store singleton; this
 // harness drives a createTestStore instance instead, like the sibling suite.
@@ -513,6 +511,86 @@ describe('remote-paired pane: host snapshot mirror vs client byte-derived status
       const entry = store.getState().agentStatusByPaneKey[MIRROR_PANE_KEY]
       expect(entry?.state).toBe('blocked')
       expect(entry?.interactivePrompt).toBe('Allow Bash(rm -rf)?')
+    })
+
+    it('keeps live client status over a restored, unconfirmed host block', () => {
+      const store = seedPairedClientStore()
+      replayClientOscWorking(store, T0 + 500)
+
+      // Host clock ahead of the client: only the unconfirmed flag can keep this row out.
+      const restoredAt = T0 + 60_000
+      applyHostSnapshot(
+        store,
+        makeHostSnapshot({
+          snapshotVersion: 2,
+          hostNow: restoredAt,
+          includeAgentStatus: true,
+          agentStatusOverrides: {
+            state: 'blocked',
+            prompt: 'Allow Bash(rm -rf)?',
+            restoredUnconfirmed: true
+          }
+        }),
+        T0 + 1_000
+      )
+
+      expect(store.getState().agentStatusByPaneKey[MIRROR_PANE_KEY]?.state).toBe('working')
+    })
+
+    it('adopts host monitoring metadata without replacing client-owned byte status', () => {
+      const store = seedPairedClientStore()
+      applyHostSnapshot(
+        store,
+        makeHostSnapshot({ snapshotVersion: 1, hostNow: T0, includeAgentStatus: false }),
+        T0
+      )
+      replayClientOscWorking(store, T0 + 500)
+      const epochBeforeHostStatus = store.getState().agentStatusEpoch
+      const sortEpochBeforeHostStatus = store.getState().sortEpoch
+
+      applyHostSnapshot(
+        store,
+        makeHostSnapshot({
+          snapshotVersion: 2,
+          hostNow: T0 + 1_000,
+          includeAgentStatus: true,
+          agentStatusOverrides: {
+            state: 'working',
+            workingMode: 'monitoring',
+            prompt: 'host hook prompt'
+          }
+        }),
+        T0 + 1_000
+      )
+
+      expect(store.getState().agentStatusByPaneKey[MIRROR_PANE_KEY]).toMatchObject({
+        state: 'working',
+        workingMode: 'monitoring',
+        prompt: CLIENT_PROMPT,
+        updatedAt: T0 + 500
+      })
+      expect(store.getState().agentStatusEpoch).toBe(epochBeforeHostStatus + 1)
+      expect(store.getState().sortEpoch).toBe(sortEpochBeforeHostStatus)
+
+      applyHostSnapshot(
+        store,
+        makeHostSnapshot({
+          snapshotVersion: 3,
+          hostNow: T0 + 2_000,
+          includeAgentStatus: true,
+          agentStatusOverrides: { state: 'working' }
+        }),
+        T0 + 2_000
+      )
+
+      expect(store.getState().agentStatusByPaneKey[MIRROR_PANE_KEY]).toMatchObject({
+        state: 'working',
+        prompt: CLIENT_PROMPT,
+        updatedAt: T0 + 500
+      })
+      expect(store.getState().agentStatusByPaneKey[MIRROR_PANE_KEY]?.workingMode).toBeUndefined()
+      expect(store.getState().agentStatusEpoch).toBe(epochBeforeHostStatus + 2)
+      expect(store.getState().sortEpoch).toBe(sortEpochBeforeHostStatus)
     })
   })
 })

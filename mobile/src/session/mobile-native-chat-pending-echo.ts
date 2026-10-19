@@ -1,3 +1,5 @@
+import { normalizeReconcileText } from './mobile-native-chat-draft-reconcile'
+
 export type MobileNativeChatPendingMessage = {
   id: string
   text: string
@@ -10,15 +12,18 @@ export type MobileNativeChatPendingMessage = {
    *  and rebased onto the first authoritative read instead of reconciling
    *  against rows that may belong to another tab. */
   baselineResolved: boolean
+  sentAt?: number
 }
 
 export type MobileNativeChatSendOrigin = {
   draftKey: string
+  draftEditGeneration: number
   pendingKey: string | null
   normalizedText: string
   baselineOccurrences: number
   baselineTailMessageId: string | null
   baselineResolved: boolean
+  sentAt: number
 }
 
 type PendingByKey = Record<string, MobileNativeChatPendingMessage[]>
@@ -43,13 +48,17 @@ export function appendMobileNativeChatPending(
   images?: string[]
 ): PendingByKey {
   const current = previous[key] ?? []
+  // Count outstanding repeats with the same normalized key.
   const earlierOutstanding = current.filter(
     (pending) =>
-      pending.text.trim() === origin.normalizedText &&
+      normalizeReconcileText(pending.text) === origin.normalizedText &&
       pending.expectedOccurrence > origin.baselineOccurrences
   ).length
+  // Image ordinal selection and counting must share the empty-text discriminator.
   const expectedImageEchoOrdinal =
-    current.filter((pending) => pending.text.trim() === '' && pending.images?.length).length + 1
+    current.filter(
+      (pending) => normalizeReconcileText(pending.text) === '' && pending.images?.length
+    ).length + 1
   return {
     ...previous,
     [key]: [
@@ -63,6 +72,7 @@ export function appendMobileNativeChatPending(
             : origin.baselineOccurrences + earlierOutstanding + 1,
         baselineTailMessageId: origin.baselineTailMessageId,
         baselineResolved: origin.baselineResolved,
+        sentAt: origin.sentAt,
         ...(images?.length ? { images } : {})
       }
     ]

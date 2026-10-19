@@ -1,7 +1,9 @@
+import type { NativeChatComposerInput } from './native-chat-composer-input'
 import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -11,16 +13,23 @@ import {
 } from 'react'
 import type { AgentType } from '../../../../shared/agent-status-types'
 import { getNativeChatAgentProfile } from '../../../../shared/native-chat-agent-profiles'
-import type { SlashCommandSuggestion } from '../../../../shared/native-chat-slash-commands'
+import type {
+  NativeChatSessionSkill,
+  SlashCommandSuggestion
+} from '../../../../shared/native-chat-slash-commands'
+import { isStructuredAgentSessionComposerCommand } from '../../../../shared/structured-agent-session-composer'
 import {
+  applyMentionSuggestion,
   applyPickerSuggestion,
   classifyNativeChatSend,
   deriveComposerAutocomplete,
   editReplacesTriggerToken,
+  isSkillPickerTriggered,
   type ComposerAutocomplete,
   type NativeChatPickerItem,
   type NativeChatSendClassification
 } from './native-chat-composer-state'
+import { classifyPickerCommands } from '../../../../shared/native-chat-picker-items'
 import { useNativeChatSkills } from './use-native-chat-skills'
 import {
   emitNativeChatPickerItemAccepted,
@@ -35,6 +44,7 @@ export type NativeChatPickerState = {
   classifySend: (draft: string) => NativeChatSendClassification
   clearSkillOrigin: () => void
   completeItem: (item: NativeChatPickerItem) => void
+  completeMention: (path: string) => void
   dismiss: (triggerKey: string) => void
   handleDraftOrCaretChange: (value: string, caret: number) => void
 }
@@ -46,7 +56,12 @@ export function useNativeChatPickerState(args: {
   draft: string
   caret: number
   agentCommands: readonly SlashCommandSuggestion[]
-  textareaRef: RefObject<HTMLTextAreaElement | null>
+  /** A message recalled from history is resent or walked past, not completed, until it is edited. */
+  recalledFromHistory: boolean
+  disabled: boolean
+  /** Skill names the running session reports; undefined keeps the host disk scan. */
+  sessionSkills?: readonly NativeChatSessionSkill[]
+  textareaRef: RefObject<NativeChatComposerInput | null>
   setDraft: (value: string) => void
   setCaret: Dispatch<SetStateAction<number>>
   setActiveSuggestion: Dispatch<SetStateAction<number>>
@@ -58,37 +73,61 @@ export function useNativeChatPickerState(args: {
     draft,
     caret,
     agentCommands,
+    recalledFromHistory,
+    disabled,
+    sessionSkills,
     textareaRef,
     setDraft,
     setCaret,
     setActiveSuggestion
   } = args
   const profile = useMemo(() => getNativeChatAgentProfile(agent), [agent])
-  const beforeCaret = draft.slice(0, caret)
-  const skillPickerTriggered =
-    profile?.skillPrefix === '$'
-      ? /(?:^|\s)\$\S*$/.test(beforeCaret)
-      : profile?.skillPrefix === '/'
-        ? beforeCaret.startsWith('/') && !/\s/.test(beforeCaret)
-        : false
+  const disabledRef = useRef(disabled)
+  useLayoutEffect(() => {
+    disabledRef.current = disabled
+  }, [disabled])
+  const skillPickerTriggered = !disabled && isSkillPickerTriggered(draft.slice(0, caret), profile)
   const discovery = useNativeChatSkills(agent, terminalTabId, skillPickerTriggered)
+  const pickerCommands = useMemo(
+    () =>
+      classifyPickerCommands(agentCommands, discovery.skills, {
+        // A chat that keeps scanned skills (OpenCode) may report each as a command too.
+        reportMayListSkills: profile?.keepsScannedSkills === true,
+        isSendCommand: (name) => isStructuredAgentSessionComposerCommand(`/${name}`, agent)
+      }),
+    [agent, agentCommands, discovery.skills, profile]
+  )
   const listboxId = `native-chat-picker-${useId().replaceAll(':', '')}`
   const dismissalContext = `${draftScopeKey}:${agent}`
   const [dismissed, setDismissed] = useState<{ context: string; triggerKey: string } | null>(null)
   const skillOriginRef = useRef<string | null>(null)
   const lastOpenKeyRef = useRef<string | null>(null)
-  const autocomplete = useMemo(
+  const autocomplete = useMemo<ComposerAutocomplete>(
     () =>
-      deriveComposerAutocomplete(
-        draft,
-        caret,
-        agentCommands,
-        discovery.skills,
-        profile,
-        discovery,
-        dismissed?.context === dismissalContext ? dismissed.triggerKey : null
-      ),
-    [agentCommands, caret, dismissalContext, dismissed, discovery, draft, profile]
+      recalledFromHistory || disabled
+        ? { mode: 'none' }
+        : deriveComposerAutocomplete(
+            draft,
+            caret,
+            pickerCommands,
+            discovery.skills,
+            profile,
+            discovery,
+            dismissed?.context === dismissalContext ? dismissed.triggerKey : null,
+            sessionSkills
+          ),
+    [
+      caret,
+      dismissalContext,
+      dismissed,
+      discovery,
+      disabled,
+      draft,
+      pickerCommands,
+      profile,
+      recalledFromHistory,
+      sessionSkills
+    ]
   )
 
   useEffect(() => {
@@ -100,7 +139,7 @@ export function useNativeChatPickerState(args: {
   }, [dismissalContext])
 
   useEffect(() => {
-    if (autocomplete.mode !== 'slash' && autocomplete.mode !== 'skill') {
+    if (autocomplete.mode !== 'slash') {
       lastOpenKeyRef.current = null
       return
     }
@@ -111,23 +150,44 @@ export function useNativeChatPickerState(args: {
     }
   }, [agent, autocomplete, dismissalContext])
 
-  const completeItem = useCallback(
-    (item: NativeChatPickerItem) => {
-      if (autocomplete.mode !== 'slash' && autocomplete.mode !== 'skill') {
-        return
-      }
-      const result = applyPickerSuggestion(draft, caret, item, autocomplete.prefix)
+  const commitCompletion = useCallback(
+    (result: { draft: string; caret: number }) => {
       setDraft(result.draft)
       setCaret(result.caret)
       setActiveSuggestion(0)
       setDismissed(null)
-      skillOriginRef.current = item.kind === 'skill' ? result.insertedToken : null
-      emitNativeChatPickerItemAccepted({ agent, itemKind: item.kind })
       const textarea = textareaRef.current
       textarea?.focus()
       requestAnimationFrame(() => textarea?.setSelectionRange(result.caret, result.caret))
     },
-    [agent, autocomplete, caret, draft, setActiveSuggestion, setCaret, setDraft, textareaRef]
+    [setActiveSuggestion, setCaret, setDraft, textareaRef]
+  )
+
+  const completeItem = useCallback(
+    (item: NativeChatPickerItem) => {
+      if (disabledRef.current || autocomplete.mode !== 'slash') {
+        return
+      }
+      const result = applyPickerSuggestion(draft, caret, item)
+      if (item.kind === 'skill' && textareaRef.current?.insertSkill) {
+        const from = result.caret - result.insertedToken.length - 1
+        textareaRef.current.insertSkill(from, caret, result.insertedToken)
+      }
+      commitCompletion(result)
+      skillOriginRef.current = item.kind === 'skill' ? result.insertedToken : null
+      emitNativeChatPickerItemAccepted({ agent, itemKind: item.kind })
+    },
+    [agent, autocomplete, caret, commitCompletion, draft, textareaRef]
+  )
+
+  const completeMention = useCallback(
+    (path: string) => {
+      if (disabledRef.current || autocomplete.mode !== 'mention') {
+        return
+      }
+      commitCompletion(applyMentionSuggestion(draft, caret, path))
+    },
+    [autocomplete, caret, commitCompletion, draft]
   )
 
   const handleDraftOrCaretChange = useCallback(
@@ -149,19 +209,18 @@ export function useNativeChatPickerState(args: {
       const next = deriveComposerAutocomplete(
         value,
         nextCaret,
-        agentCommands,
+        pickerCommands,
         discovery.skills,
         profile,
-        discovery
+        discovery,
+        null,
+        sessionSkills
       )
-      if (
-        (next.mode !== 'slash' && next.mode !== 'skill') ||
-        next.triggerKey !== dismissed.triggerKey
-      ) {
+      if (next.mode === 'none' || next.triggerKey !== dismissed.triggerKey) {
         setDismissed(null)
       }
     },
-    [agentCommands, dismissalContext, dismissed, discovery, draft, profile]
+    [dismissalContext, dismissed, discovery, draft, pickerCommands, profile, sessionSkills]
   )
 
   const classifySend = useCallback(
@@ -192,6 +251,7 @@ export function useNativeChatPickerState(args: {
     classifySend,
     clearSkillOrigin,
     completeItem,
+    completeMention,
     dismiss,
     handleDraftOrCaretChange
   }

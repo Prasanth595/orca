@@ -2,6 +2,9 @@ import {
   collectCompactWorkspaceWords,
   foldWorkspaceNameWhitespaceToHyphen
 } from './workspace-name-text-scanner'
+import { escapeRegex } from './string-utils'
+import type { JiraIssueKeyCasing } from './ui-chrome-types'
+import { JIRA_ISSUE_KEY_PATTERN } from './jira-issue-url'
 
 function normalizeApostrophes(input: string): string {
   return input.replace(/[‘’]/g, "'")
@@ -54,6 +57,27 @@ export type WorkspaceIntentWorkItem = {
 export type WorkspaceIntentName = {
   displayName: string
   seedName: string
+}
+
+export type WorkspaceSeedNameOptions = {
+  jiraIssueKeyCasing?: JiraIssueKeyCasing
+}
+
+// Restore casing only for the leading Jira key in generated seeds.
+export function applyJiraIssueKeyCasing(
+  seedName: string,
+  jiraIdentifier: string | undefined,
+  casing: JiraIssueKeyCasing | undefined
+): string {
+  const key = jiraIdentifier?.trim().toUpperCase()
+  if (casing !== 'preserve' || !key || !JIRA_ISSUE_KEY_PATTERN.test(key)) {
+    return seedName
+  }
+  // Why: slugify only lowercases a key (its characters survive the strip), so re-uppercasing the leading segment is lossless.
+  const lowerKey = key.toLowerCase()
+  return seedName === lowerKey || seedName.startsWith(`${lowerKey}-`)
+    ? `${key}${seedName.slice(key.length)}`
+    : seedName
 }
 
 function getLinkedWorkItemTitleSubject(item: { title: string }): string {
@@ -135,10 +159,6 @@ function compactWords(input: string, maxWords = 4): string {
   return words.map(titleCaseWord).join(' ')
 }
 
-function escapeRegExp(input: string): string {
-  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
 function compactWorkItemTitle(title: string, item: WorkspaceIntentWorkItem): string {
   const identifier = item.linearIdentifier ?? item.jiraIdentifier
   let withoutPrefix = title
@@ -152,7 +172,7 @@ function compactWorkItemTitle(title: string, item: WorkspaceIntentWorkItem): str
   }
   if (identifier) {
     withoutPrefix = withoutPrefix
-      .replace(new RegExp(`^${escapeRegExp(identifier)}\\s*[:-]?\\s*`, 'i'), '')
+      .replace(new RegExp(`^${escapeRegex(identifier)}\\s*[:-]?\\s*`, 'i'), '')
       .trim()
   }
   return compactWords(withoutPrefix || title, 3)
@@ -175,17 +195,24 @@ function workItemIdentity(item: WorkspaceIntentWorkItem): string {
 }
 
 export function getLinkedWorkItemWorkspaceName(
-  item: WorkspaceIntentWorkItem
+  item: WorkspaceIntentWorkItem,
+  options: WorkspaceSeedNameOptions = {}
 ): WorkspaceIntentName | null {
   const identifier = item.linearIdentifier ?? item.jiraIdentifier
   let subject = getLinkedWorkItemTitleSubject(item) || item.title.trim()
   if (identifier) {
     subject = subject
-      .replace(new RegExp(`^${escapeRegExp(identifier)}\\s*[:-]?\\s*`, 'i'), '')
+      .replace(new RegExp(`^${escapeRegex(identifier)}\\s*[:-]?\\s*`, 'i'), '')
       .trim()
   }
   const displayName = [identifier, subject].filter(Boolean).join(' ') || workItemIdentity(item)
-  const seedName = slugifyForWorkspaceName(displayName)
+  const seedName = applyJiraIssueKeyCasing(
+    slugifyForWorkspaceName(displayName),
+    item.provider === 'jira' || (!item.provider && !item.linearIdentifier)
+      ? item.jiraIdentifier
+      : undefined,
+    options.jiraIssueKeyCasing
+  )
   if (!seedName) {
     return null
   }

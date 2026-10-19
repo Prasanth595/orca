@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildRows } from './worktree-list/grouping/build-rows'
-import { getGroupKeyForWorktree } from './worktree-list/grouping/worktree-group-keys'
+import { buildRows } from './worktree-list/grouping/build-rows.test-fixture'
+import { getGroupKeyForWorktree } from '../../../../shared/sidebar-list/worktree-group-keys'
 import {
   LOCAL_HOST_LABEL,
   repo,
@@ -155,6 +155,53 @@ describe('buildRows with pinned worktrees', () => {
     ])
   })
 
+  it('uses the registered SSH target label for openclaw rows', () => {
+    const sshRepo: Repo = {
+      ...remoteRepo,
+      id: 'repo-openclaw',
+      connectionId: 'openclaw',
+      executionHostId: 'ssh:openclaw'
+    }
+    const sshWorktree: Worktree = {
+      ...remoteWorktree,
+      id: 'wt-openclaw',
+      repoId: sshRepo.id
+    }
+    const rows = buildRows(
+      'workspace-status',
+      [worktree, sshWorktree],
+      new Map([
+        [repo.id, repo],
+        [sshRepo.id, sshRepo]
+      ]),
+      null,
+      new Set(),
+      undefined,
+      undefined,
+      undefined,
+      {},
+      new Map([
+        [worktree.id, worktree],
+        [sshWorktree.id, sshWorktree]
+      ]),
+      false,
+      undefined,
+      [],
+      new Set(),
+      new Map(),
+      new Map(),
+      [],
+      undefined,
+      [],
+      new Map([['ssh:openclaw', 'openclaw']])
+    )
+
+    expect(rows.filter((row) => row.type === 'item')).toMatchObject([
+      { worktree: { id: worktree.id }, hostContextLabel: LOCAL_HOST_LABEL },
+      { worktree: { id: sshWorktree.id }, hostContextLabel: 'openclaw' }
+    ])
+  })
+
   it('shows distinct Orca server names when status grouping mixes runtime hosts', () => {
     const firstRepo: Repo = {
       ...repo,
@@ -284,7 +331,6 @@ describe('buildRows with pinned worktrees', () => {
         remoteWorktree,
         new Map([[remoteRepo.id, remoteRepo]]),
         null,
-        undefined,
         undefined,
         {
           projects: [project],

@@ -54,7 +54,7 @@ describe('createIpcPtyTransport', () => {
 
     onExit?.({ id: 'pty-new', code: 0 })
 
-    expect(onPtyExit).toHaveBeenCalledWith('pty-new')
+    expect(onPtyExit).toHaveBeenCalledWith('pty-new', 0)
     expect(transport.getPtyId()).toBeNull()
     expect(transport.isConnected()).toBe(false)
   })
@@ -91,7 +91,8 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('unregisterPtyDataHandlers prevents final data burst from triggering notifications', async () => {
-    const { createIpcPtyTransport, unregisterPtyDataHandlers } = await import('./pty-transport')
+    const { createIpcPtyTransport } = await import('./pty-transport')
+    const { unregisterPtyDataHandlers } = await import('./pty-dispatcher')
     const onTitleChange = vi.fn()
     const onBell = vi.fn()
     const onAgentBecameIdle = vi.fn()
@@ -127,7 +128,7 @@ describe('createIpcPtyTransport', () => {
 
     // Exit handler should still work (exit handlers are kept alive)
     onExit?.({ id: 'pty-1', code: -1 })
-    expect(onPtyExit).toHaveBeenCalledWith('pty-1')
+    expect(onPtyExit).toHaveBeenCalledWith('pty-1', -1)
   })
 
   it('marks a host reversible-stop exit before delivering it to the pane', async () => {
@@ -142,11 +143,9 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('restores data handlers when an intentional shutdown fails before exit', async () => {
-    const {
-      createIpcPtyTransport,
-      restorePtyDataHandlersAfterFailedShutdown,
-      unregisterPtyDataHandlers
-    } = await import('./pty-transport')
+    const { createIpcPtyTransport } = await import('./pty-transport')
+    const { restorePtyDataHandlersAfterFailedShutdown, unregisterPtyDataHandlers } =
+      await import('./pty-dispatcher')
     const onDataCallback = vi.fn()
     const transport = createIpcPtyTransport()
 
@@ -164,11 +163,9 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('retains rollback replay until a pane detached during sleep registers again', async () => {
-    const {
-      createIpcPtyTransport,
-      restorePtyDataHandlersAfterFailedShutdown,
-      unregisterPtyDataHandlers
-    } = await import('./pty-transport')
+    const { createIpcPtyTransport } = await import('./pty-transport')
+    const { restorePtyDataHandlersAfterFailedShutdown, unregisterPtyDataHandlers } =
+      await import('./pty-dispatcher')
     const first = createIpcPtyTransport()
     await first.connect({ url: '', callbacks: { onReplayData: vi.fn() } })
 
@@ -188,11 +185,9 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('keeps handlers suspended until every overlapping shutdown owner rolls back', async () => {
-    const {
-      createIpcPtyTransport,
-      restorePtyDataHandlersAfterFailedShutdown,
-      unregisterPtyDataHandlers
-    } = await import('./pty-transport')
+    const { createIpcPtyTransport } = await import('./pty-transport')
+    const { restorePtyDataHandlersAfterFailedShutdown, unregisterPtyDataHandlers } =
+      await import('./pty-dispatcher')
     const { ptyDataSidecars } = await import('./pty-dispatcher')
     const onDataCallback = vi.fn()
     const sidecar = vi.fn()
@@ -218,7 +213,8 @@ describe('createIpcPtyTransport', () => {
   it('unregisterPtyDataHandlers cancels staleTitleTimer so it cannot fire stale idle transition', async () => {
     vi.useFakeTimers()
     try {
-      const { createIpcPtyTransport, unregisterPtyDataHandlers } = await import('./pty-transport')
+      const { createIpcPtyTransport } = await import('./pty-transport')
+      const { unregisterPtyDataHandlers } = await import('./pty-dispatcher')
       const onTitleChange = vi.fn()
       const onAgentBecameIdle = vi.fn()
       const onAgentBecameWorking = vi.fn()

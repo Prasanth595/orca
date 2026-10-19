@@ -51,6 +51,44 @@ describe('verify-localization-catalog', () => {
     expect(readJson(path.join(localesDir, 'es.json'))).toEqual({})
   })
 
+  it('bootstraps keys referenced only through translateSearchKeyword', async () => {
+    const { root, localesDir } = makeProject({
+      sourceText:
+        "import { translateSearchKeyword } from '@/components/settings/settings-search-keywords'\nexport const keywords = translateSearchKeyword('auto.components.settings.example.search.scroll', 'scroll')\n"
+    })
+
+    await expect(verifyLocalizationCatalog(root, { fix: false })).resolves.toBe(1)
+    await expect(verifyLocalizationCatalog(root, { fix: true })).resolves.toBe(0)
+
+    expect(readJson(path.join(localesDir, 'en.json'))).toEqual({
+      auto: { components: { settings: { example: { search: { scroll: 'scroll' } } } } }
+    })
+  })
+
+  it.each([
+    ['en', false],
+    ['en', true],
+    ['es', false]
+  ])('rejects dotted %s keys without rewriting them (fix: %s)', async (locale, fix) => {
+    const nested = { auto: { example: { greeting: 'Hello.world' } } }
+    const { root, localesDir } = makeProject({
+      sourceText: 'export {}\n',
+      enCatalog: locale === 'en' ? { 'auto.example.greeting': 'Hello.world' } : nested,
+      esCatalog: locale === 'es' ? { auto: { 'example.greeting': 'Hola.world' } } : {}
+    })
+    const catalogPath = path.join(localesDir, `${locale}.json`)
+    const before = readFileSync(catalogPath, 'utf8')
+    const report = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      await expect(verifyLocalizationCatalog(root, { fix })).resolves.toBe(1)
+      expect(report).toHaveBeenCalledWith(expect.stringContaining(`${locale}.json`))
+      expect(report).toHaveBeenCalledWith('dotted: auto.example.greeting')
+      expect(readFileSync(catalogPath, 'utf8')).toBe(before)
+    } finally {
+      report.mockRestore()
+    }
+  })
+
   it('never overwrites mismatched translations or removes target-only entries', async () => {
     const { root, localesDir } = makeProject({
       sourceText:

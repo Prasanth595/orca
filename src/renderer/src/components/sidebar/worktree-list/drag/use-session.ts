@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useRef } from 'react'
 import type React from 'react'
 import type { WorkspaceStatus } from '../../../../../../shared/worktree/types'
-import type { HostSectionRow } from '../../host-section-rows'
-import { PINNED_GROUP_KEY } from '../grouping/group-keys'
+import type { HostSectionRow } from '../../../../../../shared/sidebar-list/host-section-rows'
+import { PINNED_GROUP_KEY } from '../../../../../../shared/sidebar-list/group-keys'
 import { WORKTREE_SIDEBAR_VIRTUAL_ROW_GAP } from '../viewport/virtual-rows'
 import { getWorkspaceStatusGroupKey } from '../../workspace-status'
 import { expandDraggedWorktreeIdsForVisibleLineage } from '../../worktree-manual-order'
@@ -24,6 +24,7 @@ import {
 } from '../../worktree-sidebar-drop-preview'
 import { getWorktreeDragGroups, getWorktreeDragIndexes } from './groups'
 import type { WorktreeItemRow } from '../listing/renderable-rows'
+import { getNaturalWorktreeIds } from '../../natural-worktree-ids'
 
 export type WorktreeStatusDropRequest = {
   pointerY: number
@@ -48,15 +49,7 @@ export function useWorktreeDragSession(args: {
 
   const worktreeDragGroups = useMemo(() => getWorktreeDragGroups(rows), [rows])
   const worktreeDragUnitGroups = useMemo(() => getWorktreeDragUnitGroups(rows), [rows])
-  const naturalDragWorktreeIds = useMemo(
-    () =>
-      new Set(
-        rows.flatMap((row) =>
-          row.type === 'item' && row.sectionKey !== PINNED_GROUP_KEY ? [row.worktree.id] : []
-        )
-      ),
-    [rows]
-  )
+  const naturalDragWorktreeIds = useMemo(() => getNaturalWorktreeIds(rows), [rows])
   const worktreeLineageDragRows = useMemo(
     () =>
       rows

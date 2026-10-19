@@ -1,4 +1,10 @@
 import { BaseWindow, WebContentsView } from 'electron'
+import { isBackgroundLaunch } from '../window/foreground-activation-policy'
+import {
+  discardBrowserPopupContents,
+  prepareNativeBrowserPopup
+} from './browser-popup-native-window'
+import { MIN_POPUP_CONTENT_HEIGHT, MIN_POPUP_CONTENT_WIDTH } from './popup-window-minimum-size'
 
 // Why: Electron passes the pre-created popup WebContents through the
 // createWindow options (present at runtime, absent from the published d.ts).
@@ -6,6 +12,9 @@ import { BaseWindow, WebContentsView } from 'electron'
 // window.opener and the inherited session that OAuth/SSO popups depend on.
 export type PopupChildWindowOptions = Electron.BrowserWindowConstructorOptions & {
   webContents?: Electron.WebContents
+  nativeWindow?: Electron.BrowserWindow
+  // Why: a Cmd/Ctrl+Shift-clicked link hands over no page; only a GET may be reloaded by URL.
+  loadInitialUrl?: boolean
 }
 
 export type PopupOriginBarWindow = {
@@ -18,8 +27,6 @@ export const POPUP_ORIGIN_BAR_HEIGHT = 34
 
 const DEFAULT_POPUP_CONTENT_WIDTH = 800
 const DEFAULT_POPUP_CONTENT_HEIGHT = 600
-const MIN_POPUP_CONTENT_WIDTH = 360
-const MIN_POPUP_CONTENT_HEIGHT = 200
 
 // Why: http on loopback is a secure context (local OAuth callback servers are
 // common); only flag plain http to a real remote host.
@@ -88,6 +95,46 @@ function clampPopupContentSize(options: PopupChildWindowOptions): {
   }
 }
 
+// Fail-closed teardown: the window never loads, and late onClosed listeners still fire so the
+// caller's popup bookkeeping cannot leak an entry for a window that no longer exists.
+function closeUnpreparedPopup(
+  window: BaseWindow,
+  contentWebContents: Electron.WebContents,
+  originBarWebContents: Electron.WebContents
+): PopupOriginBarWindow {
+  const closedListeners: (() => void)[] = []
+  let closed = false
+  window.once('closed', () => {
+    closed = true
+    for (const listener of closedListeners.splice(0)) {
+      listener()
+    }
+  })
+  // Why: a plain close() lets an adopted link's pending first request reach the server.
+  discardBrowserPopupContents(contentWebContents)
+  if (!originBarWebContents.isDestroyed()) {
+    originBarWebContents.close()
+  }
+  if (!window.isDestroyed()) {
+    window.close()
+  }
+  return {
+    contentWebContents,
+    close: (): void => {
+      if (!window.isDestroyed()) {
+        window.close()
+      }
+    },
+    onClosed: (listener: () => void): void => {
+      if (closed) {
+        listener()
+        return
+      }
+      closedListeners.push(listener)
+    }
+  }
+}
+
 /**
  * Hosts a guest-opened popup inside an Orca-built window whose top strip is a
  * separate, Orca-controlled WebContentsView showing the popup's current
@@ -96,8 +143,14 @@ function clampPopupContentSize(options: PopupChildWindowOptions): {
  */
 export function openPopupWithOriginBar(
   options: PopupChildWindowOptions,
-  initialUrl: string
+  initialUrl: string,
+  // Why: the only point that provably precedes the popup's first load — per-WebContents policy
+  // that must hold before content runs (route-guest WebRTC) has to be applied here or not at all.
+  prepareContent?: (contents: Electron.WebContents) => boolean
 ): PopupOriginBarWindow {
+  if (options.nativeWindow) {
+    return prepareNativeBrowserPopup(options.nativeWindow, initialUrl, prepareContent)
+  }
   const { width, height } = clampPopupContentSize(options)
   const initialOrigin = describePopupOrigin(initialUrl)
   const window = new BaseWindow({
@@ -111,7 +164,13 @@ export function openPopupWithOriginBar(
       : {}),
     minWidth: MIN_POPUP_CONTENT_WIDTH,
     minHeight: MIN_POPUP_CONTENT_HEIGHT + POPUP_ORIGIN_BAR_HEIGHT,
-    title: initialOrigin.label
+    title: initialOrigin.label,
+    // Why: Windows/Linux attach Orca's app menu to every window, including web popups.
+    autoHideMenuBar: true,
+    show:
+      Boolean(options.webContents || options.loadInitialUrl) &&
+      !isBackgroundLaunch() &&
+      options.show !== false
   })
 
   // Why: the origin bar renders only Orca's own data: URL and must stay
@@ -119,6 +178,7 @@ export function openPopupWithOriginBar(
   const originBarView = new WebContentsView({
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true }
   })
+  const originBarWebContents = originBarView.webContents
   const contentView = new WebContentsView({
     // Why: Electron rejects an explicitly undefined webContents; omitting it
     // lets WebContentsView create contents for Cmd/Ctrl-click popups.
@@ -139,6 +199,8 @@ export function openPopupWithOriginBar(
     })
   }
   window.on('resize', layoutViews)
+  // Why: Alt-revealing the auto-hidden menu bar shrinks the content area without resizing the window.
+  window.contentView.on('bounds-changed', layoutViews)
   // Why: HTML5 fullscreen makes the whole window fullscreen. resize covers
   // this on macOS, but re-pin on the explicit events too so the origin bar
   // provably stays above fullscreen content on every platform.
@@ -147,6 +209,12 @@ export function openPopupWithOriginBar(
   layoutViews()
 
   const contentWebContents = contentView.webContents
+  if (
+    (!options.webContents && !options.loadInitialUrl) ||
+    (prepareContent && !prepareContent(contentWebContents))
+  ) {
+    return closeUnpreparedPopup(window, contentWebContents, originBarWebContents)
+  }
   let currentUrl = initialUrl
   const renderOrigin = (): void => {
     const { label, insecure } = describePopupOrigin(currentUrl)
@@ -159,15 +227,15 @@ export function openPopupWithOriginBar(
     }
     // Why: textContent + JSON encoding — the URL is attacker-controlled and
     // must never be interpolated into the bar's markup.
-    void originBarView.webContents
+    void originBarWebContents
       .executeJavaScript(
         `document.body.classList.toggle('insecure', ${insecure ? 'true' : 'false'});` +
           `document.getElementById('origin').textContent = ${JSON.stringify(label)};`
       )
       .catch(() => {})
   }
-  originBarView.webContents.once('did-finish-load', renderOrigin)
-  void originBarView.webContents.loadURL(
+  originBarWebContents.once('did-finish-load', renderOrigin)
+  void originBarWebContents.loadURL(
     `data:text/html;charset=utf-8,${encodeURIComponent(ORIGIN_BAR_HTML)}`
   )
 
@@ -187,9 +255,7 @@ export function openPopupWithOriginBar(
   }
   contentWebContents.on('page-title-updated', handlePageTitleUpdated)
 
-  // Why: with no adopted contents there is no Chromium-driven navigation for
-  // this popup, so load the target ourselves (opener handle is already gone).
-  if (!options.webContents) {
+  if (options.loadInitialUrl && !options.webContents) {
     void contentWebContents.loadURL(initialUrl).catch(() => {})
   }
 
@@ -209,6 +275,10 @@ export function openPopupWithOriginBar(
       // Why: close() (not destroy) so the page's unload handlers run — OAuth
       // pages often notify the opener from unload.
       contentWebContents.close()
+    }
+    // Why: BaseWindow does not destroy child WebContentsView contents when it closes.
+    if (!originBarWebContents.isDestroyed()) {
+      originBarWebContents.close()
     }
     for (const listener of closedListeners) {
       listener()

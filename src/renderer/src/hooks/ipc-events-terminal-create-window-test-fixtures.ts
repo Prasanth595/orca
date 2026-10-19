@@ -26,6 +26,7 @@ export function buildTerminalCreateWindow(args: {
     dispatchEvent,
     api: {
       repos: { onChanged: () => () => {} },
+      automations: { onChanged: () => () => {} },
       worktrees: {
         onChanged: () => () => {},
         onBaseStatus: () => () => {},
@@ -97,6 +98,9 @@ export function buildTerminalCreateWindow(args: {
         },
         onRequestTerminalTabMount: () => () => {},
         replyTerminalCreate,
+        onPublishAgentLaunchTab: () => () => {},
+        onRevealTerminalPane: () => () => {},
+        onAgentLaunchPaneVerdict: () => () => {},
         onSplitTerminal: () => () => {},
         onRenameTerminal: () => () => {},
         onFocusTerminal: (
@@ -125,6 +129,7 @@ export function buildTerminalCreateWindow(args: {
         onNewBrowserTab: () => () => {},
         onNewMarkdownTab: () => () => {},
         onRequestTabCreate: () => () => {},
+        onRequestRemoteCliBrowserScope: () => () => {},
         replyTabCreate: () => {},
         onRequestTabClose: () => () => {},
         replyTabClose: vi.fn(),
@@ -172,7 +177,9 @@ export function buildTerminalCreateWindow(args: {
         getBrowserDrivers: () => Promise.resolve([]),
         onTerminalFitOverrideChanged: () => () => {},
         onTerminalDriverChanged: () => () => {},
-        onBrowserDriverChanged: () => () => {}
+        onBrowserDriverChanged: () => () => {},
+        onClientHostedBrowserRowsChanged: () => () => {},
+        getClientHostedBrowserRows: async () => []
       },
       ssh: {
         listTargets: () => Promise.resolve([]),

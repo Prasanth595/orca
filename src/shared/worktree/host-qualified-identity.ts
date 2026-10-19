@@ -1,4 +1,4 @@
-import type { ExecutionHostId } from '../execution-host'
+import { parseExecutionHostId, type ExecutionHostId } from '../execution-host'
 import type { Worktree } from './types'
 
 /**
@@ -17,6 +17,28 @@ import type { Worktree } from './types'
  */
 const HOST_SEPARATOR = '|'
 
+declare const hostScopedWorktreeKeyBrand: unique symbol
+
+// Why: for new code only; existing raw-id stores stay as they are (D7).
+export type HostScopedWorktreeKey = string & { readonly [hostScopedWorktreeKeyBrand]: true }
+
+declare const hostWorktreeTargetBrand: unique symbol
+
+/** One host's copy of a workspace, for destructive entry points that must not reach its twin. */
+export type HostWorktreeTarget = {
+  readonly id: string
+  readonly hostId: ExecutionHostId
+  readonly [hostWorktreeTargetBrand]: true
+}
+
+export function hostWorktreeTarget(row: {
+  id: string
+  hostId: ExecutionHostId
+}): HostWorktreeTarget {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the only constructor of the brand; `hostId` is a concrete host by the parameter type.
+  return { id: row.id, hostId: row.hostId } as HostWorktreeTarget
+}
+
 /**
  * Stable key for one workspace on one host (STA-4343).
  *
@@ -27,15 +49,35 @@ const HOST_SEPARATOR = '|'
  * An unqualified row gets its own bucket rather than being folded into a host:
  * it may well BE one of them, but nothing here can prove which.
  */
-export function getWorktreeHostIdentity(worktree: Pick<Worktree, 'id' | 'hostId'>): string {
+export function getWorktreeHostIdentity(
+  worktree: Pick<Worktree, 'id' | 'hostId'>
+): HostScopedWorktreeKey {
   return composeWorktreeHostIdentity(worktree.hostId, worktree.id)
 }
 
 export function composeWorktreeHostIdentity(
   hostId: ExecutionHostId | undefined,
   worktreeId: string
-): string {
-  return `${hostId ?? ''}${HOST_SEPARATOR}${worktreeId}`
+): HostScopedWorktreeKey {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: this is the only constructor of the brand; the bytes are the unbranded composite, frozen by golden tests (D25).
+  return `${hostId ?? ''}${HOST_SEPARATOR}${worktreeId}` as HostScopedWorktreeKey
+}
+
+/**
+ * The host back out of an identity, when the identity names one.
+ *
+ * An empty prefix (`|<worktreeId>`) stays undefined rather than defaulting to
+ * `local`: an unqualified row may be on any host, and callers use this to pick
+ * the host a destructive action runs against.
+ */
+export function getExecutionHostIdFromWorktreeHostIdentity(
+  identity: string
+): ExecutionHostId | undefined {
+  const separatorIndex = identity.indexOf(HOST_SEPARATOR)
+  if (separatorIndex <= 0) {
+    return undefined
+  }
+  return parseExecutionHostId(identity.slice(0, separatorIndex))?.id
 }
 
 /**
@@ -48,4 +90,13 @@ export function composeWorktreeHostIdentity(
  */
 export function getWorktreeIdFromHostIdentity(identity: string): string {
   return identity.slice(identity.indexOf(HOST_SEPARATOR) + 1)
+}
+
+/** True only for the canonical host-qualified form, not a legacy id containing `|`. */
+export function isWorktreeHostIdentity(identity: string): boolean {
+  const separator = identity.indexOf(HOST_SEPARATOR)
+  return (
+    separator === 0 ||
+    (separator > 0 && parseExecutionHostId(identity.slice(0, separator)) !== null)
+  )
 }
