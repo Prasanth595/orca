@@ -60,12 +60,7 @@ function requireHttps(provider: GitLabReviewNotificationProvider): string {
 function classifyError(error: unknown): GitLabSourceError {
   const { stderr } = extractExecError(error)
   const text = stderr.toLowerCase()
-  if (/\b(401|403)\b/.test(text)) {
-    return {
-      kind: 'auth',
-      message: 'GitLab authentication failed (401/403). Check the glab token.'
-    }
-  }
+  // Rate limits first: providers may report them as 403.
   const rateLimited = /\b429\b/.test(text) || /rate limit/i.test(text)
   if (rateLimited) {
     const retryAfter = text.match(/retry-after[:\s]+(\d+)/i)
@@ -73,6 +68,12 @@ function classifyError(error: unknown): GitLabSourceError {
       kind: 'rate_limited',
       retryAfterMs: retryAfter ? Number(retryAfter[1]) * 1000 : undefined,
       message: 'GitLab rate limit hit (429).'
+    }
+  }
+  if (/\b(401|403)\b/.test(text)) {
+    return {
+      kind: 'auth',
+      message: 'GitLab authentication failed (401/403). Check the glab token.'
     }
   }
   return { kind: 'network', message: stderr.slice(0, 200) || 'GitLab request failed.' }
@@ -156,6 +157,46 @@ function toEvent(
 
 function sinceParam(since: string): string {
   return `&updated_after=${encodeURIComponent(since)}`
+}
+
+/**
+ * List MRs/issues closed or merged since `sinceIso` (read-only).
+ * Used only to resolve open notifications: these items are confirmed gone,
+ * unlike the delta open listing where an item's absence proves nothing.
+ */
+export async function listGitLabClosedReviewItems(
+  provider: GitLabReviewNotificationProvider,
+  sinceIso: string,
+  runner: GitLabApiRunner = createGitLabApiRunner()
+): Promise<{ mrs: ReviewEvent[]; issues: ReviewEvent[] }> {
+  // Validate before any network call, regardless of the injected runner.
+  requireHttps(provider)
+  const project = `projects/${provider.projectId}`
+  const params = (state: string) =>
+    `?state=${state}&order_by=updated_at&sort=asc&per_page=50${sinceParam(sinceIso)}`
+  const toMrs = (raw: unknown): ReviewEvent[] =>
+    (Array.isArray(raw) ? raw : [])
+      .map((r) => toListItem(r))
+      .filter((i): i is GitLabListItem => i !== null)
+      .map((i) => toEvent(i, 'mr', provider))
+  try {
+    const [closedMrRaw, mergedMrRaw, closedIssueRaw] = await Promise.all([
+      runner(`${project}/merge_requests${params('closed')}`, provider),
+      runner(`${project}/merge_requests${params('merged')}`, provider),
+      runner(`${project}/issues${params('closed')}`, provider)
+    ])
+    const mrs = [...toMrs(closedMrRaw), ...toMrs(mergedMrRaw)]
+    const issues = (Array.isArray(closedIssueRaw) ? closedIssueRaw : [])
+      .map((r) => toListItem(r))
+      .filter((i): i is GitLabListItem => i !== null)
+      .map((i) => toEvent(i, 'issue', provider))
+    return { mrs, issues }
+  } catch (error) {
+    if (error && typeof error === 'object' && 'kind' in error) {
+      throw error
+    }
+    throw classifyError(error)
+  }
 }
 
 /**

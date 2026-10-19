@@ -66,6 +66,7 @@ describe('delivery', () => {
     const delivery = createReviewDelivery({
       onSummarize,
       openUrl,
+      platform: 'darwin',
       createNotification: makeFakeNotification((fake) => created.push(fake))
     })
     await delivery.deliver([{ event, disposition: 'notify' }])
@@ -77,8 +78,29 @@ describe('delivery', () => {
     // Click opens the URL; the action button triggers Summarize.
     created[0].click()
     expect(openUrl).toHaveBeenCalledWith(event.url)
+    expect(onSummarize).not.toHaveBeenCalled()
     created[0].action(0)
     expect(onSummarize).toHaveBeenCalledWith(event)
+  })
+
+  it('on Linux omits actions and routes the notification click to Summarize', async () => {
+    const created: FakeNotification[] = []
+    const onSummarize = vi.fn()
+    const openUrl = vi.fn(async () => {})
+    const delivery = createReviewDelivery({
+      onSummarize,
+      openUrl,
+      platform: 'linux',
+      createNotification: makeFakeNotification((fake) => created.push(fake))
+    })
+    await delivery.deliver([{ event, disposition: 'notify' }])
+    expect(created).toHaveLength(1)
+    // Electron 43 does not support notification actions on Linux.
+    expect(created[0].options.actions).toBeUndefined()
+    // The click itself is the Summarize entry point on Linux.
+    created[0].click()
+    expect(onSummarize).toHaveBeenCalledWith(event)
+    expect(openUrl).not.toHaveBeenCalled()
   })
 
   it('resolve closes the active notification without showing a new one', async () => {

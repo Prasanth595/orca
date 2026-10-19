@@ -1,7 +1,7 @@
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   advanceWatermark,
   createFileWatermarkStore,
@@ -9,6 +9,7 @@ import {
   MAX_FINGERPRINTS,
   watermarkKey
 } from './dedup'
+import type { ItemSnapshot } from './transitions'
 
 describe('dedup', () => {
   it('watermarkKey is stable and case-insensitive', () => {
@@ -64,5 +65,117 @@ describe('dedup', () => {
     expect(store.getWatermark('k')).toBeNull()
     expect(store.hasFingerprint('x')).toBe(false)
     await store.flush() // creates parent dirs
+  })
+
+  it('serializes concurrent flushes: writes never overlap', async () => {
+    const { promises: nodeFs } = await import('node:fs')
+    let inFlight = 0
+    let maxInFlight = 0
+    let notifyWriteStarted!: () => void
+    const writeStarted = new Promise<void>((r) => {
+      notifyWriteStarted = r
+    })
+    let releaseWrite!: () => void
+    const writeCanFinish = new Promise<void>((r) => {
+      releaseWrite = r
+    })
+    const spy = vi.spyOn(nodeFs, 'writeFile')
+    // The atomic rename is covered by its own test; here it is a no-op so the
+    // write-tracking mock above does not need to touch the filesystem.
+    const renameSpy = vi.spyOn(nodeFs, 'rename').mockImplementation(async () => {})
+    // Observe write overlap without touching the real filesystem: the mock
+    // only tracks in-flight writes and waits on an explicit gate.
+    spy.mockImplementation(async (..._args: [unknown, unknown, unknown?]) => {
+      const first = inFlight === 0
+      inFlight += 1
+      maxInFlight = Math.max(maxInFlight, inFlight)
+      if (first) {
+        notifyWriteStarted()
+      }
+      // Hold the first write open so a concurrent flush would overlap it.
+      await writeCanFinish
+      inFlight -= 1
+    })
+    try {
+      const dir = mkdtempSync(join(tmpdir(), 'review-notifications-'))
+      const file = join(dir, 'state.json')
+      const store = createFileWatermarkStore(file)
+      store.setWatermark('k', '2026-10-19T10:00:00Z')
+      const first = store.flush()
+      await writeStarted
+      store.setWatermark('k2', '2026-10-19T11:00:00Z')
+      const second = store.flush()
+      // Give the second flush a chance to (incorrectly) start its own write.
+      await new Promise((r) => setTimeout(r, 50))
+      expect(maxInFlight).toBeLessThanOrEqual(1)
+      releaseWrite()
+      await Promise.all([first, second])
+    } finally {
+      spy.mockRestore()
+      renameSpy.mockRestore()
+    }
+  })
+
+  it('concurrent flushes never lose updates', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'review-notifications-'))
+    const file = join(dir, 'state.json')
+    const store = createFileWatermarkStore(file)
+    store.setWatermark('k', '2026-10-19T10:00:00Z')
+    const first = store.flush()
+    // Mutate while the first flush is queued: the second flush must persist it.
+    store.setWatermark('k2', '2026-10-19T11:00:00Z')
+    const second = store.flush()
+    await Promise.all([first, second])
+    const reread = createFileWatermarkStore(file)
+    await reread.flush()
+    expect(reread.getWatermark('k')).toBe('2026-10-19T10:00:00Z')
+    expect(reread.getWatermark('k2')).toBe('2026-10-19T11:00:00Z')
+  })
+
+  it('writes atomically via temp file + rename', async () => {
+    const { promises: nodeFs } = await import('node:fs')
+    const renameSpy = vi.spyOn(nodeFs, 'rename')
+    try {
+      const dir = mkdtempSync(join(tmpdir(), 'review-notifications-'))
+      const file = join(dir, 'state.json')
+      const store = createFileWatermarkStore(file)
+      store.setWatermark('k', '2026-10-19T10:00:00Z')
+      await store.flush()
+      expect(renameSpy).toHaveBeenCalled()
+      const firstCall = renameSpy.mock.calls[0]
+      expect(firstCall).toBeDefined()
+      const [tmp, target] = firstCall ?? []
+      expect(target).toBe(file)
+      expect(String(tmp)).toMatch(/\.tmp$/)
+      // No temp files left behind.
+      expect(await nodeFs.readdir(dir)).toEqual(['state.json'])
+    } finally {
+      renameSpy.mockRestore()
+    }
+  })
+
+  it('persists snapshots across instances (restart keeps transition state)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'review-notifications-'))
+    const file = join(dir, 'state.json')
+    const snapshot: ItemSnapshot = {
+      iid: 7,
+      updatedAt: '2026-10-19T10:00:00Z',
+      draft: false,
+      reviewers: [],
+      labels: [],
+      title: 'Add search'
+    }
+    const first = createFileWatermarkStore(file)
+    first.setSnapshot('gitlab|h|r|mr|7', snapshot)
+    await first.flush()
+
+    const second = createFileWatermarkStore(file)
+    await second.flush()
+    expect(second.getSnapshot('gitlab|h|r|mr|7')).toMatchObject({
+      iid: 7,
+      updatedAt: '2026-10-19T10:00:00Z'
+    })
+    second.deleteSnapshot('gitlab|h|r|mr|7')
+    expect(second.getSnapshot('gitlab|h|r|mr|7')).toBeUndefined()
   })
 })

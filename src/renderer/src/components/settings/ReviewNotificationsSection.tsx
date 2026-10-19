@@ -87,13 +87,21 @@ function Field({
   )
 }
 
-const EVENT_ROWS: { key: keyof ReviewNotificationEventToggles; label: string }[] = [
-  { key: 'mrOpened', label: 'New merge request / pull request' },
-  { key: 'mrUpdated', label: 'Merge request / pull request updated' },
-  { key: 'mrMerged', label: 'Merge request / pull request merged' },
-  { key: 'mrClosed', label: 'Merge request / pull request closed' },
-  { key: 'issueOpened', label: 'New issue' },
-  { key: 'issueUpdated', label: 'Issue updated' }
+const EVENT_ROWS: {
+  key: keyof ReviewNotificationEventToggles
+  labelKey: string
+  fallback: string
+}[] = [
+  { key: 'mrOpened', labelKey: 'event.mrOpened', fallback: 'New merge request / pull request' },
+  {
+    key: 'mrUpdated',
+    labelKey: 'event.mrUpdated',
+    fallback: 'Merge request / pull request updated'
+  },
+  { key: 'mrMerged', labelKey: 'event.mrMerged', fallback: 'Merge request / pull request merged' },
+  { key: 'mrClosed', labelKey: 'event.mrClosed', fallback: 'Merge request / pull request closed' },
+  { key: 'issueOpened', labelKey: 'event.issueOpened', fallback: 'New issue' },
+  { key: 'issueUpdated', labelKey: 'event.issueUpdated', fallback: 'Issue updated' }
 ]
 
 export function ReviewNotificationsSection({
@@ -108,6 +116,19 @@ export function ReviewNotificationsSection({
     void updateRepo(repo.id, { reviewNotifications: next })
   }
   const patch = (p: Partial<ReviewNotificationConfig>) => save({ ...config, ...p })
+
+  // Numeric fields: ignore empty/invalid keystrokes so the field can be
+  // cleared and retyped. The controlled input snaps back to the saved value
+  // until a valid number is entered.
+  const setPositiveInt = (next: string, apply: (value: number) => void) => {
+    if (next.trim() === '') {
+      return
+    }
+    const n = Number(next)
+    if (Number.isFinite(n)) {
+      apply(Math.max(1, n))
+    }
+  }
 
   const gitlab: GitLabReviewNotificationProvider = {
     kind: 'gitlab',
@@ -142,7 +163,7 @@ export function ReviewNotificationsSection({
         <ToggleRow
           key={`${prefix}-${row.key}`}
           id={`${prefix}-${row.key}-${repo.id}`}
-          label={row.label}
+          label={tr(row.labelKey, row.fallback)}
           checked={events[row.key]}
           disabled={disabled}
           onChange={(next) => onChange({ ...events, [row.key]: next })}
@@ -210,7 +231,7 @@ export function ReviewNotificationsSection({
                   value={gitlab.projectId ? String(gitlab.projectId) : ''}
                   type="number"
                   placeholder="123456"
-                  onChange={(next) => setGitlab({ projectId: Number(next) || 0 })}
+                  onChange={(next) => setPositiveInt(next, (n) => setGitlab({ projectId: n }))}
                 />
                 <Field
                   id={`review-notifications-gitlab-labels-${repo.id}`}
@@ -283,7 +304,7 @@ export function ReviewNotificationsSection({
               label={tr('pollInterval', 'Poll interval (minutes)')}
               value={String(config.pollIntervalMinutes)}
               type="number"
-              onChange={(next) => patch({ pollIntervalMinutes: Math.max(1, Number(next) || 10) })}
+              onChange={(next) => setPositiveInt(next, (n) => patch({ pollIntervalMinutes: n }))}
             />
             <Field
               id={`review-notifications-maxhour-${repo.id}`}
@@ -291,7 +312,7 @@ export function ReviewNotificationsSection({
               value={String(config.maxNotificationsPerHour)}
               type="number"
               onChange={(next) =>
-                patch({ maxNotificationsPerHour: Math.max(1, Number(next) || 10) })
+                setPositiveInt(next, (n) => patch({ maxNotificationsPerHour: n }))
               }
             />
           </div>

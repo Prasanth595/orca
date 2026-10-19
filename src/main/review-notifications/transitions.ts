@@ -15,9 +15,10 @@ import type { ReviewEvent } from './review-event'
  * - reviewer added (gitlab)       -> review_requested
  * - watched label added           -> labeled
  * - updated_at advanced, no other transition -> updated
- * - disappeared from the open list           -> merged or closed
- *   (resolved silently; we cannot tell merge from close without an extra
- *   fetch, and both only dismiss the notification)
+ *
+ * Merged/closed items are detected with a separate closed-state listing (see
+ * review-classify.ts): the open listing is a delta, so an item missing from it
+ * proves nothing and must never resolve its notification.
  *
  * Only opened / reopened / review_requested / ready_for_review / labeled
  * (watched labels) ever notify. `updated` refreshes the existing notification
@@ -39,7 +40,6 @@ export type Transition =
   | { action: 'review_requested' }
   | { action: 'labeled'; label: string }
   | { action: 'updated' }
-  | { action: 'gone' }
 
 export function classifyTransition(
   previous: ItemSnapshot | undefined,
@@ -111,9 +111,6 @@ export function applyTransition(
   kind: ReviewNotificationKind,
   toggles: ReviewNotificationEventToggles
 ): ReviewEvent | null {
-  if (transition.action === 'gone') {
-    return null
-  }
   const next: ReviewEvent = { ...event, action: transition.action }
   if (!shouldNotifyForAction(next.action, kind, toggles)) {
     return null

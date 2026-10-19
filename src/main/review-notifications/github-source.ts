@@ -18,9 +18,7 @@ export type GitHubApiRunner = (
 function classifyError(error: unknown): GitHubSourceError {
   const { stderr } = extractExecError(error)
   const text = stderr.toLowerCase()
-  if (/\b(401|403)\b/.test(text)) {
-    return { kind: 'auth', message: 'GitHub authentication failed (401/403). Check the gh token.' }
-  }
+  // Rate limits first: GitHub reports secondary rate limits as HTTP 403.
   const rateLimited =
     /\b429\b/.test(text) || /rate limit|secondary rate limit|abuse detection/i.test(text)
   if (rateLimited) {
@@ -31,7 +29,23 @@ function classifyError(error: unknown): GitHubSourceError {
       message: 'GitHub rate limit hit.'
     }
   }
+  if (/\b(401|403)\b/.test(text)) {
+    return { kind: 'auth', message: 'GitHub authentication failed (401/403). Check the gh token.' }
+  }
   return { kind: 'network', message: stderr.slice(0, 200) || 'GitHub request failed.' }
+}
+
+/**
+ * Parse `gh api --paginate --slurp` output: one outer array holding each
+ * page's array. Without --slurp, pagination emits multiple concatenated JSON
+ * values and JSON.parse fails past the first page.
+ */
+export function parseSlurpedPages(stdout: string): unknown[] {
+  const parsed: unknown = JSON.parse(stdout)
+  if (!Array.isArray(parsed)) {
+    return []
+  }
+  return parsed.flatMap((page) => (Array.isArray(page) ? page : [page]))
 }
 
 /**
@@ -41,9 +55,15 @@ function classifyError(error: unknown): GitHubSourceError {
 export function createGitHubApiRunner(): GitHubApiRunner {
   return async (endpoint) => {
     // Absolute API path carries the repo; default gh auth applies (github.com in 1a).
-    const { stdout } = await ghExecFileAsync(['api', endpoint, '--paginate', '--method', 'GET'])
-    const parsed: unknown = JSON.parse(stdout)
-    return parsed
+    const { stdout } = await ghExecFileAsync([
+      'api',
+      endpoint,
+      '--paginate',
+      '--slurp',
+      '--method',
+      'GET'
+    ])
+    return parseSlurpedPages(stdout)
   }
 }
 
@@ -86,6 +106,47 @@ function toEvent(
       labels: (item.labels ?? []).map((l) => String(l.name ?? '')).filter(Boolean),
       reviewers: (item.requested_reviewers ?? []).map((r) => String(r.login ?? '')).filter(Boolean)
     }
+  }
+}
+
+/**
+ * List PRs/issues closed since `sinceIso` (read-only). The issues endpoint
+ * returns closed PRs too; items carrying `pull_request` map to kind 'mr'.
+ * Used only to resolve open notifications: these items are confirmed gone,
+ * unlike the delta open listing where an item's absence proves nothing.
+ */
+export async function listGitHubClosedReviewItems(
+  provider: GitHubReviewNotificationProvider,
+  sinceIso: string,
+  runner: GitHubApiRunner = createGitHubApiRunner()
+): Promise<{ mrs: ReviewEvent[]; issues: ReviewEvent[] }> {
+  const slug = `${provider.owner}/${provider.repo}`
+  const query = `?state=closed&sort=updated&direction=asc&per_page=50&since=${encodeURIComponent(sinceIso)}`
+  try {
+    const raw = await runner(`repos/${slug}/issues${query}`, provider)
+    const mrs: ReviewEvent[] = []
+    const issues: ReviewEvent[] = []
+    for (const r of Array.isArray(raw) ? raw : []) {
+      if (typeof r !== 'object' || r === null) {
+        continue
+      }
+      const isPr = 'pull_request' in r
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: forge JSON boundary; toEvent narrows every field before use.
+      const event = toEvent(r as Record<string, unknown>, isPr ? 'mr' : 'issue', provider)
+      if (event) {
+        if (isPr) {
+          mrs.push(event)
+        } else {
+          issues.push(event)
+        }
+      }
+    }
+    return { mrs, issues }
+  } catch (error) {
+    if (error && typeof error === 'object' && 'kind' in error) {
+      throw error
+    }
+    throw classifyError(error)
   }
 }
 

@@ -1,3 +1,4 @@
+import { tmpdir } from 'node:os'
 import { runProcess } from '@orca/process-host'
 import type { TuiAgent } from '../../shared/tui-agent'
 import type { ReviewEvent } from './review-event'
@@ -59,12 +60,32 @@ type OneShotCommand = {
  * Headless one-shot invocations Orca knows to be reliable. 1a covers the two
  * CLIs with stable non-interactive modes; other agents degrade honestly to
  * "not supported yet" rather than launching something half-working.
+ *
+ * Read-only is enforced at the CLI layer, not just in the prompt: the agent's
+ * effective permissions come from the user's own CLI config, which may allow
+ * bypass/full-access. A prompt-injected MR/issue title must not be able to
+ * turn one Summarize click into shell commands or file writes.
  */
 const ONE_SHOT_COMMANDS: Partial<Record<TuiAgent, OneShotCommand>> = {
-  // `claude -p` prints the reply and exits.
-  claude: { command: 'claude', buildArgs: (prompt) => ['-p', prompt] },
-  // `codex exec` runs non-interactively and exits.
-  codex: { command: 'codex', buildArgs: (prompt) => ['exec', prompt] }
+  // `claude -p` prints the reply and exits. plan mode forbids edits;
+  // --disallowedTools is belt-and-braces against bypass configs.
+  claude: {
+    command: 'claude',
+    buildArgs: (prompt) => [
+      '-p',
+      '--permission-mode',
+      'plan',
+      '--disallowedTools',
+      'Bash,Edit,Write',
+      prompt
+    ]
+  },
+  // `codex exec` runs non-interactively and exits. read-only sandbox blocks
+  // writes even when the user's codex config allows more.
+  codex: {
+    command: 'codex',
+    buildArgs: (prompt) => ['exec', '--sandbox', 'read-only', prompt]
+  }
 }
 
 export function resolveOneShotCommand(agentId: TuiAgent | null | undefined): OneShotCommand | null {
@@ -82,7 +103,14 @@ export type OneShotProcessResult = {
 }
 
 export type OneShotProcessRunner = (
-  spec: { program: string; args: string[]; timeoutMs: number; maxOutputBytes: number },
+  spec: {
+    program: string
+    args: string[]
+    /** Neutral working directory for the child (never a repo checkout). */
+    cwd: string
+    timeoutMs: number
+    maxOutputBytes: number
+  },
   outputCapture: 'head' | 'tail'
 ) => Promise<OneShotProcessResult>
 
@@ -116,6 +144,10 @@ export function createOneShotAgentRunner(deps: OneShotRunnerDeps): OneShotAgentR
         {
           program: oneShot.command,
           args: oneShot.buildArgs(prompt),
+          // Neutral cwd: the summary run must not inherit a repo checkout as
+          // its working directory, even if the agent ignores the read-only
+          // flags above.
+          cwd: tmpdir(),
           timeoutMs,
           maxOutputBytes: SUMMARIZE_MAX_OUTPUT_BYTES
         },

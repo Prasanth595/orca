@@ -46,6 +46,7 @@ type Harness = {
   digests: { repoLabel: string; events: ReviewEvent[] }[]
   health: { repoId: string; provider: string; error: string | null }[]
   setListed: (mrs: ReviewEvent[], issues?: ReviewEvent[]) => void
+  setClosed: (mrs: ReviewEvent[], issues?: ReviewEvent[]) => void
   setThrow: (error: unknown) => void
 }
 
@@ -57,6 +58,7 @@ function makeHarness(
   const digests: { repoLabel: string; events: ReviewEvent[] }[] = []
   const health: { repoId: string; provider: string; error: string | null }[] = []
   let listed: { mrs: ReviewEvent[]; issues: ReviewEvent[] } = { mrs: [], issues: [] }
+  let closed: { mrs: ReviewEvent[]; issues: ReviewEvent[] } = { mrs: [], issues: [] }
   let throwError: unknown = null
   const store = createInMemoryWatermarkStore()
   const poller = new ReviewNotificationPoller({
@@ -83,6 +85,13 @@ function makeHarness(
       return listed
     },
     githubList: async () => ({ mrs: [], issues: [] }),
+    gitlabListClosed: async () => {
+      if (throwError) {
+        throw throwError
+      }
+      return closed
+    },
+    githubListClosed: async () => ({ mrs: [], issues: [] }),
     setTimeoutFn: () => ({}),
     clearTimeoutFn: () => {}
   })
@@ -94,6 +103,10 @@ function makeHarness(
     health,
     setListed: (mrs, issues = []) => {
       listed = { mrs, issues }
+      throwError = null
+    },
+    setClosed: (mrs, issues = []) => {
+      closed = { mrs, issues }
       throwError = null
     },
     setThrow: (error) => {
@@ -131,6 +144,8 @@ describe('poller', () => {
         random: () => 0.5,
         gitlabList: async () => ({ mrs: [mrEvent()], issues: [] }),
         githubList: async () => ({ mrs: [], issues: [] }),
+        gitlabListClosed: async () => ({ mrs: [], issues: [] }),
+        githubListClosed: async () => ({ mrs: [], issues: [] }),
         setTimeoutFn: () => ({}),
         clearTimeoutFn: () => {}
       })
@@ -158,18 +173,46 @@ describe('poller', () => {
     expect(h.health.some((x) => x.error !== null)).toBe(true)
   })
 
-  it('resolves silently when the MR disappears (merged/closed)', async () => {
+  it('does NOT resolve an MR merely absent from the delta listing', async () => {
+    const h = makeHarness([{ id: 'r1', displayName: 'proj', reviewNotifications: gitlabConfig() }])
+    h.setListed([mrEvent()])
+    await h.poller.pollOnce('r1', 'gitlab')
+    expect(h.delivered.flat().filter((i) => i.disposition === 'notify')).toHaveLength(1)
+
+    // The delta listing omits unchanged items: no resolve, no re-notify.
+    h.setListed([])
+    h.setClosed([])
+    const items = await h.poller.pollOnce('r1', 'gitlab')
+    expect(items).toHaveLength(0)
+
+    // A later push on the same MR is an update, not a new "opened".
+    h.setListed([mrEvent({ updatedAt: '2026-10-19T10:05:00Z' })])
+    h.setClosed([])
+    const items2 = await h.poller.pollOnce('r1', 'gitlab')
+    expect(items2.filter((i) => i.disposition === 'notify')).toHaveLength(0)
+  })
+
+  it('resolves silently when the closed listing confirms the MR is gone', async () => {
     const h = makeHarness([{ id: 'r1', displayName: 'proj', reviewNotifications: gitlabConfig() }])
     h.setListed([mrEvent()])
     await h.poller.pollOnce('r1', 'gitlab')
     expect(h.delivered).toHaveLength(1)
 
     h.setListed([])
+    h.setClosed([mrEvent({ updatedAt: '2026-10-19T10:30:00Z' })])
     const items = await h.poller.pollOnce('r1', 'gitlab')
     expect(items).toHaveLength(1)
     expect(items[0].disposition).toBe('resolve')
     // The resolve is delivered but never as a user-facing notification.
     expect(items[0].event.action).toBe('closed')
+  })
+
+  it('ignores closed-listing entries for items never seen (no snapshot)', async () => {
+    const h = makeHarness([{ id: 'r1', displayName: 'proj', reviewNotifications: gitlabConfig() }])
+    h.setListed([])
+    h.setClosed([mrEvent({ updatedAt: '2026-10-19T10:30:00Z' })])
+    const items = await h.poller.pollOnce('r1', 'gitlab')
+    expect(items).toHaveLength(0)
   })
 
   it('groups overflow into a digest past the hourly budget', async () => {
@@ -247,5 +290,120 @@ describe('poller draft transition', () => {
     const notifies = items.filter((i) => i.disposition === 'notify')
     expect(notifies).toHaveLength(1)
     expect(notifies[0].event.action).toBe('ready_for_review')
+  })
+})
+
+describe('poller orphan jobs', () => {
+  function makeTimerHarness(
+    repos: () => {
+      id: string
+      displayName: string
+      reviewNotifications?: ReviewNotificationConfig
+    }[],
+    gitlabList: () => Promise<{ mrs: ReviewEvent[]; issues: ReviewEvent[] }>
+  ) {
+    const timers = new Map<number, () => void>()
+    let nextId = 1
+    let pollCalls = 0
+    const delivered: ReviewPollItem[][] = []
+    const store = createInMemoryWatermarkStore()
+    const poller = new ReviewNotificationPoller({
+      getRepos: repos,
+      getGlobalEnabled: () => true,
+      store,
+      delivery: {
+        deliver: async (items) => {
+          delivered.push(items)
+        },
+        deliverDigest: async () => {}
+      },
+      now: () => Date.now(),
+      random: () => 0.5,
+      gitlabList: async () => {
+        pollCalls += 1
+        return gitlabList()
+      },
+      githubList: async () => ({ mrs: [], issues: [] }),
+      gitlabListClosed: async () => ({ mrs: [], issues: [] }),
+      githubListClosed: async () => ({ mrs: [], issues: [] }),
+      setTimeoutFn: (cb: () => void) => {
+        const id = nextId++
+        timers.set(id, cb)
+        return id
+      },
+      clearTimeoutFn: (id: unknown) => {
+        if (typeof id === 'number') {
+          timers.delete(id)
+        }
+      }
+    })
+    const fireTimer = (id: number) => {
+      const cb = timers.get(id)
+      expect(cb).toBeDefined()
+      cb!()
+    }
+    return { poller, timers, delivered, fireTimer, pollCalls: () => pollCalls }
+  }
+
+  it('does not reschedule a job removed while its poll is in flight', async () => {
+    let repos = [{ id: 'r1', displayName: 'proj', reviewNotifications: gitlabConfig() }]
+    let releasePoll!: () => void
+    const h = makeTimerHarness(
+      () => repos,
+      () =>
+        new Promise<{ mrs: ReviewEvent[]; issues: ReviewEvent[] }>((r) => {
+          releasePoll = () => r({ mrs: [], issues: [] })
+        })
+    )
+    h.poller.start()
+    expect(h.timers.size).toBe(1)
+    const timerId = [...h.timers.keys()][0]!
+    h.fireTimer(timerId)
+    // Let the poll reach the hanging source call.
+    await new Promise((r) => setImmediate(r))
+    expect(h.pollCalls()).toBe(1)
+    // Disable the repo mid-poll: the job is removed and its timer cleared.
+    repos = []
+    h.poller.reconcile()
+    // Finish the poll: the finally must not resurrect the removed job.
+    releasePoll()
+    await new Promise((r) => setTimeout(r, 20))
+    expect(h.timers.size).toBe(0)
+    expect(h.delivered).toHaveLength(0)
+    h.poller.stop()
+  })
+
+  it('does not poll or reschedule from a stale retry timer after removal', async () => {
+    let repos = [{ id: 'r1', displayName: 'proj', reviewNotifications: gitlabConfig() }]
+    const h = makeTimerHarness(
+      () => repos,
+      async () => {
+        throw {
+          kind: 'rate_limited',
+          retryAfterMs: 60_000,
+          message: 'GitLab rate limit hit (429).'
+        }
+      }
+    )
+    h.poller.start()
+    expect(h.timers.size).toBe(1)
+    const firstTimer = [...h.timers.keys()][0]!
+    h.fireTimer(firstTimer)
+    // Let the poll fail and arm the backoff retry timer.
+    await new Promise((r) => setTimeout(r, 20))
+    expect(h.pollCalls()).toBe(1)
+    expect(h.timers.size).toBe(1)
+    const retryTimer = [...h.timers.keys()][0]!
+    const retryCb = h.timers.get(retryTimer)!
+    // Remove the job while the backoff is pending.
+    repos = []
+    h.poller.reconcile()
+    expect(h.timers.size).toBe(0)
+    // The stale retry callback must neither poll nor reschedule.
+    retryCb()
+    await new Promise((r) => setTimeout(r, 20))
+    expect(h.pollCalls()).toBe(1)
+    expect(h.timers.size).toBe(0)
+    h.poller.stop()
   })
 })

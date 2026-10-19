@@ -9,7 +9,7 @@ import {
 } from './transitions'
 
 export type ReviewClassifyDeps = {
-  snapshots: Map<string, ItemSnapshot>
+  /** Owns watermarks, fingerprints, and per-item snapshots (all persisted). */
   store: ReviewWatermarkStore
   now: () => number
 }
@@ -18,7 +18,13 @@ export type ReviewClassifyInput = {
   provider: 'gitlab' | 'github'
   events: ReviewNotificationEventToggles
   watchedLabels: string[]
+  /** Open items changed since the watermark. A delta: absence proves nothing. */
   listed: { mrs: ReviewEvent[]; issues: ReviewEvent[] }
+  /**
+   * Items confirmed closed/merged since the watermark (separate listing).
+   * Only these may resolve an open notification — never the delta above.
+   */
+  closed: { mrs: ReviewEvent[]; issues: ReviewEvent[] }
 }
 
 function snapshotKey(event: ReviewEvent): string {
@@ -36,21 +42,21 @@ function updatedToggleOn(kind: 'mr' | 'issue', events: ReviewNotificationEventTo
 }
 
 /**
- * Diff a poll snapshot against last-seen state, producing notify/update/
- * resolve items. Fingerprint dedup runs here so a restart never re-notifies.
+ * Diff a poll snapshot against persisted last-seen state, producing
+ * notify/update/resolve items. Fingerprint dedup and snapshots both survive
+ * restarts, so a restart never re-notifies and never misclassifies a known
+ * item as newly opened.
  */
 export function classifyReviewItems(
   deps: ReviewClassifyDeps,
   input: ReviewClassifyInput
 ): ReviewPollItem[] {
-  const { snapshots, store, now } = deps
-  const { provider, events, watchedLabels, listed } = input
+  const { store, now } = deps
+  const { provider, events, watchedLabels, listed, closed } = input
   const out: ReviewPollItem[] = []
-  const seenKeys = new Set<string>()
   const handle = (event: ReviewEvent): void => {
     const key = snapshotKey(event)
-    seenKeys.add(key)
-    const prev = snapshots.get(key)
+    const prev = store.getSnapshot(key)
     const snapshot: ItemSnapshot = {
       iid: event.iid,
       updatedAt: event.updatedAt,
@@ -60,7 +66,7 @@ export function classifyReviewItems(
       title: event.title
     }
     const transition: Transition = classifyTransition(prev, snapshot, watchedLabels)
-    snapshots.set(key, snapshot)
+    store.setSnapshot(key, snapshot)
     const classified = applyTransition(event, transition, event.kind, events)
     if (!classified) {
       // 'updated' refreshes in place when its toggle is on; silent otherwise.
@@ -85,26 +91,23 @@ export function classifyReviewItems(
   for (const e of listed.issues) {
     handle(e)
   }
-  // Items that vanished from the open list: resolve their notification silently.
-  for (const [key, snap] of snapshots) {
-    if (seenKeys.has(key)) {
-      continue
-    }
-    const [itemProvider, host, repo, kind, iid] = key.split('|')
-    if (itemProvider !== provider) {
-      continue
-    }
-    if (kind !== 'mr' && kind !== 'issue') {
+  // Resolve only items the closed listing confirms as closed/merged. An item
+  // merely absent from the delta listing (unchanged since the watermark) keeps
+  // its snapshot and its notification.
+  for (const e of [...closed.mrs, ...closed.issues]) {
+    const key = snapshotKey(e)
+    const snap = store.getSnapshot(key)
+    if (!snap) {
       continue
     }
     out.push({
       event: {
         provider,
-        host,
-        repo,
-        kind,
+        host: e.host,
+        repo: e.repo,
+        kind: e.kind,
         action: 'closed',
-        iid: Number(iid),
+        iid: e.iid,
         actor: '',
         title: snap.title,
         url: '',
@@ -112,7 +115,7 @@ export function classifyReviewItems(
       },
       disposition: 'resolve'
     })
-    snapshots.delete(key)
+    store.deleteSnapshot(key)
   }
   return out
 }

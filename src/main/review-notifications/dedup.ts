@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs'
 import { dirname } from 'node:path'
+import type { ItemSnapshot } from './transitions'
 
 /**
  * Dedup + watermark bookkeeping for the review poller.
@@ -8,6 +9,10 @@ import { dirname } from 'node:path'
  * same provider event never notifies twice — across restarts — while a new
  * action on the same MR (e.g. ready_for_review after opened) is distinct.
  * The store is bounded: fingerprints are an LRU capped at MAX_FINGERPRINTS.
+ *
+ * Per-item snapshots are persisted too: transition classification needs the
+ * *previous* snapshot, and an in-memory-only snapshot would make every
+ * changed item look "opened" again after a restart.
  */
 
 export const MAX_FINGERPRINTS = 2000
@@ -18,6 +23,10 @@ export type ReviewWatermarkStore = {
   setWatermark: (key: string, iso: string) => void
   hasFingerprint: (fingerprint: string) => boolean
   addFingerprint: (fingerprint: string) => void
+  /** Last-seen per-item snapshot for transition classification. */
+  getSnapshot: (key: string) => ItemSnapshot | undefined
+  setSnapshot: (key: string, snapshot: ItemSnapshot) => void
+  deleteSnapshot: (key: string) => void
   /** Persist (no-op for the in-memory store). */
   flush: () => Promise<void>
 }
@@ -53,6 +62,7 @@ export function createInMemoryWatermarkStore(): ReviewWatermarkStore {
   const watermarks = new Map<string, string>()
   const fingerprints: string[] = []
   const fingerprintSet = new Set<string>()
+  const snapshots = new Map<string, ItemSnapshot>()
   return {
     getWatermark: (key) => watermarks.get(key) ?? null,
     setWatermark: (key, iso) => {
@@ -72,6 +82,13 @@ export function createInMemoryWatermarkStore(): ReviewWatermarkStore {
         }
       }
     },
+    getSnapshot: (key) => snapshots.get(key),
+    setSnapshot: (key, snapshot) => {
+      snapshots.set(key, snapshot)
+    },
+    deleteSnapshot: (key) => {
+      snapshots.delete(key)
+    },
     flush: async () => {}
   }
 }
@@ -79,6 +96,7 @@ export function createInMemoryWatermarkStore(): ReviewWatermarkStore {
 type PersistedState = {
   watermarks: Record<string, string>
   fingerprints: string[]
+  snapshots: Record<string, ItemSnapshot>
 }
 
 async function readState(filePath: string): Promise<PersistedState> {
@@ -88,18 +106,24 @@ async function readState(filePath: string): Promise<PersistedState> {
     const parsed = JSON.parse(raw) as Partial<PersistedState>
     return {
       watermarks: parsed.watermarks ?? {},
-      fingerprints: Array.isArray(parsed.fingerprints) ? parsed.fingerprints : []
+      fingerprints: Array.isArray(parsed.fingerprints) ? parsed.fingerprints : [],
+      snapshots:
+        parsed.snapshots !== null && typeof parsed.snapshots === 'object' ? parsed.snapshots : {}
     }
   } catch {
-    return { watermarks: {}, fingerprints: [] }
+    return { watermarks: {}, fingerprints: [], snapshots: {} }
   }
 }
 
 /** File-backed store; safe to construct even when the file does not exist yet. */
 export function createFileWatermarkStore(filePath: string): ReviewWatermarkStore {
   let loaded: Promise<PersistedState> | null = null
-  let state: PersistedState = { watermarks: {}, fingerprints: [] }
+  let state: PersistedState = { watermarks: {}, fingerprints: [], snapshots: {} }
   let dirty = false
+  // Serializes flushes: concurrent polls share one store, and overlapping
+  // writeFile calls on the same path are not safe. A failed write marks the
+  // store dirty again so the next flush retries; the chain itself never breaks.
+  let writeChain: Promise<void> = Promise.resolve()
   const ensureLoaded = async (): Promise<PersistedState> => {
     if (!loaded) {
       loaded = readState(filePath).then((s) => {
@@ -113,6 +137,9 @@ export function createFileWatermarkStore(filePath: string): ReviewWatermarkStore
             s.fingerprints.push(fp)
             seen.add(fp)
           }
+        }
+        for (const [k, v] of Object.entries(state.snapshots)) {
+          s.snapshots[k] = v
         }
         state = s
         return s
@@ -148,14 +175,38 @@ export function createFileWatermarkStore(filePath: string): ReviewWatermarkStore
       }
       dirty = true
     },
-    flush: async () => {
-      await ensureLoaded()
-      if (!dirty) {
-        return
-      }
-      dirty = false
-      await fs.mkdir(dirname(filePath), { recursive: true })
-      await fs.writeFile(filePath, JSON.stringify(state), 'utf-8')
+    getSnapshot: (key) => state.snapshots[key],
+    setSnapshot: (key, snapshot) => {
+      state.snapshots[key] = snapshot
+      dirty = true
+    },
+    deleteSnapshot: (key) => {
+      delete state.snapshots[key]
+      dirty = true
+    },
+    flush: () => {
+      const run = writeChain.then(async () => {
+        await ensureLoaded()
+        if (!dirty) {
+          return
+        }
+        // Take the dirty flag before writing: mutations during the write set
+        // it again and are picked up by the next flush instead of being lost.
+        dirty = false
+        const payload = JSON.stringify(state)
+        try {
+          await fs.mkdir(dirname(filePath), { recursive: true })
+          // Atomic write: a crash mid-write leaves the previous file intact.
+          const tmp = `${filePath}.${process.pid}.tmp`
+          await fs.writeFile(tmp, payload, 'utf-8')
+          await fs.rename(tmp, filePath)
+        } catch (error) {
+          dirty = true
+          throw error
+        }
+      })
+      writeChain = run.catch(() => {})
+      return run
     }
   }
 }

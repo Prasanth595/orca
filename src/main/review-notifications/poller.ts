@@ -5,13 +5,12 @@ import {
   type ReviewNotificationConfig,
   type ReviewNotificationEventToggles
 } from '../../shared/review-notification-types'
-import { listGitLabReviewItems } from './gitlab-source'
-import { listGitHubReviewItems } from './github-source'
+import { listGitLabClosedReviewItems, listGitLabReviewItems } from './gitlab-source'
+import { listGitHubClosedReviewItems, listGitHubReviewItems } from './github-source'
 import { advanceWatermark, watermarkKey, type ReviewWatermarkStore } from './dedup'
 import { classifyReviewItems } from './review-classify'
 import { ReviewNotificationBudget, type ReviewBudgetDelivery } from './review-budget'
 import type { ReviewEvent, ReviewPollItem } from './review-event'
-import type { ItemSnapshot } from './transitions'
 
 export type ReviewPollerRepo = Pick<Repo, 'id' | 'displayName' | 'reviewNotifications'>
 
@@ -25,6 +24,8 @@ export type ReviewPollerDeps = {
   onHealth?: (repoId: string, provider: 'gitlab' | 'github', error: string | null) => void
   gitlabList?: typeof listGitLabReviewItems
   githubList?: typeof listGitHubReviewItems
+  gitlabListClosed?: typeof listGitLabClosedReviewItems
+  githubListClosed?: typeof listGitHubClosedReviewItems
   setTimeoutFn?: (callback: () => void, ms: number) => unknown
   clearTimeoutFn?: (handle: unknown) => void
 }
@@ -50,8 +51,6 @@ type ProviderJob = {
   timer: unknown
   consecutiveFailures: number
   budget: ReviewNotificationBudget
-  /** Last-seen snapshots for transition classification (session-local). */
-  snapshots: Map<string, ItemSnapshot>
 }
 
 const MAX_BACKOFF_MULTIPLIER = 4
@@ -62,7 +61,14 @@ export class ReviewNotificationPoller {
   private deps: Required<
     Pick<
       ReviewPollerDeps,
-      'now' | 'random' | 'gitlabList' | 'githubList' | 'setTimeoutFn' | 'clearTimeoutFn'
+      | 'now'
+      | 'random'
+      | 'gitlabList'
+      | 'githubList'
+      | 'gitlabListClosed'
+      | 'githubListClosed'
+      | 'setTimeoutFn'
+      | 'clearTimeoutFn'
     >
   > &
     ReviewPollerDeps
@@ -73,6 +79,8 @@ export class ReviewNotificationPoller {
       random: Math.random,
       gitlabList: listGitLabReviewItems,
       githubList: listGitHubReviewItems,
+      gitlabListClosed: listGitLabClosedReviewItems,
+      githubListClosed: listGitHubClosedReviewItems,
       setTimeoutFn: setTimeout,
       clearTimeoutFn: clearTimeout,
       ...deps
@@ -120,8 +128,7 @@ export class ReviewNotificationPoller {
             config,
             timer: null,
             consecutiveFailures: 0,
-            budget: new ReviewNotificationBudget(this.deps.now),
-            snapshots: new Map()
+            budget: new ReviewNotificationBudget(this.deps.now)
           }
           this.jobs.set(key, job)
           this.schedule(job, this.jitteredInterval(job))
@@ -168,11 +175,22 @@ export class ReviewNotificationPoller {
       void this.pollJob(job)
         .catch(() => {})
         .finally(() => {
-          if (!this.stopped) {
+          // Reschedule only while this exact job is still registered: a repo
+          // disabled (or the kill-switch flipped) mid-poll must not leave an
+          // orphan job polling with its stale config.
+          if (this.isCurrentJob(job)) {
             this.schedule(job, this.nextDelay(job))
           }
         })
     }, delayMs)
+  }
+
+  /**
+   * True while this exact job object is the registered job for its repo and
+   * the poller is running. Guards every re-arm path against orphan reschedule.
+   */
+  private isCurrentJob(job: ProviderJob): boolean {
+    return !this.stopped && this.jobs.get(`${job.repoId}|${job.provider}`) === job
   }
 
   private nextDelay(job: ProviderJob): number {
@@ -204,12 +222,18 @@ export class ReviewNotificationPoller {
   }
 
   private async pollJob(job: ProviderJob): Promise<ReviewPollItem[]> {
+    // A job removed mid-flight (repo disabled, kill-switch flipped) must not
+    // poll or deliver with its stale config.
+    if (!this.isCurrentJob(job)) {
+      return []
+    }
     const host = this.hostOf(job)
     const slug = this.repoSlugOf(job)
     const since =
       this.deps.store.getWatermark(watermarkKey(job.provider, host, slug, 'mr')) ??
       new Date(this.deps.now() - job.config.pollIntervalMinutes * 60 * 1000).toISOString()
     let listed: { mrs: ReviewEvent[]; issues: ReviewEvent[] }
+    let closed: { mrs: ReviewEvent[]; issues: ReviewEvent[] }
     let events: ReviewNotificationEventToggles
     let watchedLabels: string[]
     try {
@@ -220,7 +244,12 @@ export class ReviewNotificationPoller {
         }
         events = provider.events
         watchedLabels = provider.watchedLabels ?? []
-        listed = await this.deps.gitlabList(provider, since)
+        const [openItems, closedItems] = await Promise.all([
+          this.deps.gitlabList(provider, since),
+          this.deps.gitlabListClosed(provider, since)
+        ])
+        listed = openItems
+        closed = closedItems
       } else {
         const provider = job.config.providers.github
         if (!provider?.enabled) {
@@ -228,7 +257,12 @@ export class ReviewNotificationPoller {
         }
         events = provider.events
         watchedLabels = provider.watchedLabels ?? []
-        listed = await this.deps.githubList(provider, since)
+        const [openItems, closedItems] = await Promise.all([
+          this.deps.githubList(provider, since),
+          this.deps.githubListClosed(provider, since)
+        ])
+        listed = openItems
+        closed = closedItems
       }
     } catch (error) {
       this.onSourceError(
@@ -241,8 +275,8 @@ export class ReviewNotificationPoller {
     this.deps.onHealth?.(job.repoId, job.provider, null)
 
     const items = classifyReviewItems(
-      { snapshots: job.snapshots, store: this.deps.store, now: this.deps.now },
-      { provider: job.provider, events, watchedLabels, listed }
+      { store: this.deps.store, now: this.deps.now },
+      { provider: job.provider, events, watchedLabels, listed, closed }
     )
     const delivered = await job.budget.apply({
       repoLabel: job.repoLabel,
@@ -252,7 +286,7 @@ export class ReviewNotificationPoller {
       delivery: this.deps.delivery
     })
 
-    const maxUpdated = [...listed.mrs, ...listed.issues]
+    const maxUpdated = [...listed.mrs, ...listed.issues, ...closed.mrs, ...closed.issues]
       .map((e) => e.updatedAt)
       .filter(Boolean)
       .sort()
@@ -278,10 +312,12 @@ export class ReviewNotificationPoller {
       }
       job.timer = this.deps.setTimeoutFn(
         () => {
-          if (!this.stopped) {
+          // Same orphan guard as the normal re-arm path: a job removed while
+          // waiting out the backoff must stay removed.
+          if (this.isCurrentJob(job)) {
             this.schedule(job, this.nextDelay(job))
+            void this.pollJob(job).catch(() => {})
           }
-          void this.pollJob(job).catch(() => {})
         },
         Math.min(error.retryAfterMs, 15 * 60 * 1000)
       )

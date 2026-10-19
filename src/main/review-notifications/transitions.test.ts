@@ -85,7 +85,6 @@ describe('transitions', () => {
 
   it('applyTransition returns null for silent transitions', () => {
     const toggles = resolveReviewNotificationEvents(undefined)
-    expect(applyTransition(baseEvent, { action: 'gone' }, 'mr', toggles)).toBeNull()
     expect(applyTransition(baseEvent, { action: 'updated' }, 'mr', toggles)).toBeNull()
     const opened = applyTransition(baseEvent, { action: 'opened' }, 'mr', toggles)
     expect(opened?.action).toBe('opened')

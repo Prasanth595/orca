@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { listGitLabReviewItems, type GitLabApiRunner } from './gitlab-source'
+import {
+  listGitLabClosedReviewItems,
+  listGitLabReviewItems,
+  type GitLabApiRunner
+} from './gitlab-source'
 import { resolveReviewNotificationEvents } from '../../shared/review-notification-types'
 
 const provider = {
@@ -113,5 +117,33 @@ describe('gitlab-source', () => {
     const paths = runner.mock.calls.map((call) => call[0])
     expect(paths.some((p) => p.includes('projects/42/merge_requests'))).toBe(true)
     expect(paths.some((p) => p.includes('updated_after='))).toBe(true)
+  })
+
+  it('lists closed and merged MRs plus closed issues for resolve detection', async () => {
+    const closedMr = { ...mrFixture[0], iid: 7 }
+    const mergedMr = { ...mrFixture[0], iid: 8, title: 'Merged work' }
+    const closedIssue = { ...issueFixture[0], iid: 3 }
+    const runner: GitLabApiRunner = vi.fn(async (path: string) => {
+      if (path.includes('/merge_requests') && path.includes('state=closed')) {
+        return [closedMr]
+      }
+      if (path.includes('/merge_requests') && path.includes('state=merged')) {
+        return [mergedMr]
+      }
+      if (path.includes('/issues')) {
+        expect(path).toContain('state=closed')
+        return [closedIssue]
+      }
+      throw new Error(`unexpected path ${path}`)
+    })
+    const { mrs, issues } = await listGitLabClosedReviewItems(
+      provider,
+      '2026-10-19T08:00:00Z',
+      runner
+    )
+    expect(mrs.map((m) => m.iid).sort()).toEqual([7, 8])
+    expect(mrs.every((m) => m.kind === 'mr')).toBe(true)
+    expect(issues).toHaveLength(1)
+    expect(issues[0]).toMatchObject({ kind: 'issue', iid: 3 })
   })
 })

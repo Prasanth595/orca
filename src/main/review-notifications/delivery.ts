@@ -21,6 +21,8 @@ export type ReviewDeliveryDeps = {
   dispatchPush?: (event: ReviewEvent) => void
   createNotification?: ReviewNotificationFactory
   openUrl?: (url: string) => Promise<void>
+  /** Injected for tests; defaults to the runtime platform. */
+  platform?: NodeJS.Platform
 }
 
 function notificationKey(event: ReviewEvent): string {
@@ -59,25 +61,40 @@ export function createReviewDelivery(deps: ReviewDeliveryDeps): ReviewBudgetDeli
       }
     })
   const openUrl = deps.openUrl ?? ((url) => shell.openExternal(url))
+  const platform = deps.platform ?? process.platform
+  // Electron 43 documents notification `actions` for macOS and Windows only.
+  // On Linux the Summarize button would never appear, so the notification
+  // click itself becomes the Summarize entry point there; the summary result
+  // notification still opens the event URL on click.
+  const supportsNotificationActions = platform !== 'linux'
 
   const showNew = (event: ReviewEvent) => {
     const key = notificationKey(event)
     active.get(key)?.close()
-    const notification = createNotification({
+    const options: Electron.NotificationConstructorOptions = {
       title: describeReviewEvent(event),
-      body: bodyFor(event),
-      actions: [{ type: 'button', text: 'Summarize' }]
-    })
+      body: bodyFor(event)
+    }
+    if (supportsNotificationActions) {
+      options.actions = [{ type: 'button', text: 'Summarize' }]
+    }
+    const notification = createNotification(options)
     notification.onClick(() => {
-      if (event.url) {
-        void openUrl(event.url)
-      }
-    })
-    notification.onAction((index) => {
-      if (index === 0) {
+      if (supportsNotificationActions) {
+        if (event.url) {
+          void openUrl(event.url)
+        }
+      } else {
         deps.onSummarize(event)
       }
     })
+    if (supportsNotificationActions) {
+      notification.onAction((index) => {
+        if (index === 0) {
+          deps.onSummarize(event)
+        }
+      })
+    }
     notification.onClose(() => {
       if (active.get(key) === notification) {
         active.delete(key)
