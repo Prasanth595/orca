@@ -11,10 +11,11 @@ import type {
   AgentLaunchTarget
 } from '../../shared/agent-launch-intent'
 import type { OrcaRuntimeService } from '../runtime/orca-runtime'
-import type {
-  readAgentLaunchModeSettings,
-  AgentLaunchModeReceipt,
-  AgentLaunchModeVocabulary
+import {
+  warnStructuredLaunchDowngrade,
+  type readAgentLaunchModeSettings,
+  type AgentLaunchModeReceipt,
+  type AgentLaunchModeVocabulary
 } from './agent-launch-mode'
 import type {
   AgentLaunchSurfaceFactory,
@@ -85,3 +86,12 @@ export type AgentLaunchLegacyHostExecution = AgentLaunchExecutionBase & {
 }
 
 export type AgentLaunchExecution = AgentLaunchSurfaceExecution | AgentLaunchLegacyHostExecution
+
+export function publishAgentLaunchSurface(
+  execution: AgentLaunchExecution,
+  surface: AgentLaunchPublishedSurface
+): AgentLaunchPublishedSurface {
+  warnStructuredLaunchDowngrade(execution.intent.agent, surface.receipt)
+  execution.onSurfacePublished?.(surface)
+  return surface
+}

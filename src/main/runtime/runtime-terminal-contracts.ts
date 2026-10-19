@@ -129,6 +129,8 @@ export type TerminalCreateOptions = {
     launchConfig?: SleepingAgentLaunchConfig
     launchAgent?: TuiAgent
   }) => void
+  /** Main-only evidence: a stable-pane acquisition must answer before absence is provable. */
+  onPaneAcquisition?: (outcome: 'unverifiable' | 'absent') => void
   deferMobileSessionPublish?: boolean
 }
 
