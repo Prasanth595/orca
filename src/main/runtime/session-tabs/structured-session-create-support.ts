@@ -128,14 +128,13 @@ export abstract class OrcaRuntimeWithGetStructuredAgentSessionCreateSupport exte
           selfSessionId: input.envelope.sessionId
         })
       } catch (ownerConflict) {
-        // A switch out of a live terminal refuses as such; opening the owning chat would add a writer.
-        if (cliSource) {
-          await this.assertStructuredAdoptionTerminalWritersExited(
-            input.agent,
-            providerSessionId,
-            cliSource
-          )
-        }
+        // A switch out of a live terminal refuses as such: the owning chat's first send would
+        // otherwise start a second writer.
+        await this.assertStructuredAdoptionTerminalWritersExited(
+          input.agent,
+          providerSessionId,
+          cliSource
+        )
         throw ownerConflict
       }
     }

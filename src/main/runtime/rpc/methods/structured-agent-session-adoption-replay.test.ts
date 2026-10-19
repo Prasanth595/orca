@@ -375,18 +375,13 @@ describe('committed adopting create RPC replay', () => {
     expect(sessionAdapter.acquire).toHaveBeenCalledTimes(1)
     expect(internal.publishStructuredAgentSessionTab).toHaveBeenCalledTimes(2)
     expect(selectAccountHome).toHaveBeenCalledTimes(1)
-    expect(await call(dispatcher, createParams(OPERATION, 'another-chat'))).toMatchObject({
+    // The switched-out terminal is checked before the owner is named; an unavailable scan refuses.
+    const another = await call(dispatcher, createParams(OPERATION, 'another-chat'))
+    expect(another).toMatchObject({
       ok: true,
-      result: {
-        ok: false,
-        refusal: {
-          details: {
-            reason: 'conversationHeldElsewhere',
-            owner: { sessionId: SESSION, workspaceId: WORKSPACE }
-          }
-        }
-      }
+      result: { ok: false, refusal: { details: { reason: 'conversationHeldElsewhere' } } }
     })
+    expect(JSON.stringify(another).includes(`"owner"`)).toBe(unary)
 
     // Only an exact committed replay bypasses an unavailable writer scan.
     const freshRefusal = unary

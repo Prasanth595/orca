@@ -104,7 +104,7 @@ describe('structured Codex folder trust', () => {
 })
 
 describe('structured agent-session create intent', () => {
-  it('returns the recorded owner before CLI source lookup, new-launch support or account preparation', async () => {
+  it('returns the recorded owner, once no terminal still runs it, before launch support or account preparation', async () => {
     const record = agentSessionRecordFixture()
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: early ownership admission only reads the host's record list.
     setStructuredAgentSessionHost({
@@ -114,9 +114,9 @@ describe('structured agent-session create intent', () => {
     const support = vi
       .spyOn(runtime, 'getStructuredAgentSessionCreateSupport')
       .mockRejectedValue(new Error('fresh launch is unavailable'))
-    const sourceRows = vi.spyOn(runtime, 'getAgentProviderSessionRows').mockImplementation(() => {
-      throw new Error('source is unavailable')
-    })
+    const writers = vi
+      .spyOn(runtime, 'assertStructuredAdoptionTerminalWritersExited')
+      .mockResolvedValue()
     await expect(
       runtime.resolveStructuredAgentSessionCreateIntent({
         envelope: { sessionId: 'new-chat', clientOperationId: 'operation-1' },
@@ -134,7 +134,7 @@ describe('structured agent-session create intent', () => {
       }
     })
     expect(support).not.toHaveBeenCalled()
-    expect(sourceRows).not.toHaveBeenCalled()
+    expect(writers).toHaveBeenCalledWith('claude', 'provider-session-alpha-1', undefined)
   })
 
   it('refuses a switch out of a live terminal before naming the chat that owns the conversation', async () => {
