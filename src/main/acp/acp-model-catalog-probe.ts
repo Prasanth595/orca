@@ -1,5 +1,5 @@
 import { homedir } from 'node:os'
-import { probeAgentCliVersion } from '../agent-cli-version-probe'
+import type { AgentCliVersionReader } from '../agent-cli-version-probe'
 import type {
   AgentModelCatalogProbe,
   AgentModelCatalogSuccess
@@ -19,7 +19,7 @@ import {
 } from './acp-launch-specs'
 import type { AcpSessionStarted, AcpSessionStartOptions } from './acp-session-setup'
 import {
-  probeAcpLaunchVersion,
+  checkAcpLaunchVersion,
   resolveAcpLaunchInvocation,
   type AcpLaunchInvocationDeps
 } from './acp-structured-launch-resolution'
@@ -44,7 +44,7 @@ export type AcpModelCatalogSessionConnection = Omit<
 
 export type AcpModelCatalogProbeDeps = AcpLaunchInvocationDeps & {
   /** Test seams; production spawns through the shared supervised runner and ACP connection. */
-  probeVersion?: typeof probeAgentCliVersion
+  probeVersion?: AgentCliVersionReader
   connect?: (launch: ProviderProcessLaunch) => AcpModelCatalogConnection
   connectSession?: (launch: ProviderProcessLaunch) => AcpModelCatalogSessionConnection
   runListing?: typeof runAgentModelCatalogListing
@@ -76,13 +76,13 @@ export function createAcpModelCatalogProbe(
       ...deps,
       resolveWorkingDirectory: () => cwd
     })
-    const release = await probeAcpLaunchVersion(
+    const release = await checkAcpLaunchVersion(
       spec,
       { command, cwd, env },
       discovery.kind === 'command' && discovery.supportsVersion !== undefined,
-      deps.probeVersion ?? probeAgentCliVersion
+      deps.probeVersion
     )
-    if (!release.supported) {
+    if (release.status === 'tooOld') {
       throw new Error(`${spec.agent} at ${command} does not run structured chats`)
     }
     const listing = listingFor(discovery, release.version)
