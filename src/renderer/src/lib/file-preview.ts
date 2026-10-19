@@ -14,6 +14,7 @@ import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
 import { findSiblingGroupId } from '@/store/slices/tabs'
+import type { CreateBrowserTabOptions } from '@/store/slices/browser/browser-slice-contract'
 import { browserPageDocLocationsEqual } from '../../../shared/browser-page-doc-location'
 import type { BrowserPageDocLocation } from '../../../shared/browser-workspace-types'
 import { findPage } from '@/store/slices/browser-page-records'
@@ -173,7 +174,8 @@ export function getWorkspaceFileBrowserOpenTarget(params: {
 
 function openDocPreviewTab(
   state: AppState,
-  params: { filePath: string; worktreeId: string; targetGroupId?: string; activate: boolean }
+  params: { filePath: string; worktreeId: string; activate: boolean },
+  placement?: Pick<CreateBrowserTabOptions, 'targetGroupId' | 'split'>
 ): void {
   const docLocation = {
     kind: 'workspace-doc' as const,
@@ -182,22 +184,24 @@ function openDocPreviewTab(
   }
   // Why reuse and not a second tab: previewing a document already on screen is a request to look at
   // it, and two tabs of one document would each hold their own grant on the same file.
-  const existing = (state.browserTabsByWorktree[params.worktreeId] ?? []).find((tab) =>
-    browserPageDocLocationsEqual(tab.docLocation ?? null, docLocation)
-  )
+  const existing = findWorkspaceShowingDoc(state, docLocation)
   if (existing) {
     if (
       !params.activate ||
-      !activateBrowserWorkspaceTab({ worktreeId: params.worktreeId, workspaceId: existing.id })
+      !activateBrowserWorkspaceTab({
+        worktreeId: params.worktreeId,
+        ...existing
+      })
     ) {
-      state.setActiveBrowserTab(existing.id)
+      state.setActiveBrowserTab(existing.workspaceId)
+      state.setActiveBrowserPage(existing.workspaceId, existing.pageId)
     }
     return
   }
   state.createBrowserTab(params.worktreeId, ORCA_BROWSER_BLANK_URL, {
     docLocation,
     title: basename(params.filePath) || params.filePath,
-    targetGroupId: params.targetGroupId,
+    ...placement,
     // Why explicitly client-local: the document is read through a grant this desktop mints, so the
     // page never belongs to a remote runtime even when the worktree does.
     browserRuntimeEnvironmentId: null,
@@ -210,6 +214,7 @@ function openDocPreviewTab(
 export function openFileInBrowserTab(params: {
   filePath: string
   worktreeId: string
+  targetGroupId?: string
 }): WorkspaceFilePreviewPlan {
   const state = useAppStore.getState()
   const plan = getWorkspaceFilePreviewPlan(state, params.worktreeId, params.filePath)
@@ -217,12 +222,13 @@ export function openFileInBrowserTab(params: {
     return plan
   }
   if (plan.status === 'doc-preview') {
-    openDocPreviewTab(state, { ...params, activate: true })
+    openDocPreviewTab(state, { ...params, activate: true }, { targetGroupId: params.targetGroupId })
     return plan
   }
 
   state.createBrowserTab(params.worktreeId, plan.url, {
     title: plan.title,
+    ...(params.targetGroupId ? { targetGroupId: params.targetGroupId } : {}),
     activate: true
   })
   return plan
@@ -354,28 +360,19 @@ export function openFilePreviewToSide(params: {
 
   // Why the unfocused split on a paired workspace: the preview opens in the background, and a host
   // snapshot reads an activated empty group as a terminal pane.
-  const targetGroupId =
-    existingSibling ??
-    (getRuntimeEnvironmentIdForWorktree(state, worktreeId)
-      ? state.createEmptySplitGroup(worktreeId, sourceGroupId, 'right', { activate: false })
-      : state.createEmptySplitGroup(worktreeId, sourceGroupId, 'right'))
-  if (!targetGroupId) {
-    return
-  }
+  const activate = !getRuntimeEnvironmentIdForWorktree(state, worktreeId)
+  const placement = existingSibling
+    ? { targetGroupId: existingSibling }
+    : { split: { sourceGroupId, splitDirection: 'right' as const, activate } }
 
   if (plan.status === 'doc-preview') {
-    openDocPreviewTab(state, {
-      filePath: params.filePath,
-      worktreeId,
-      targetGroupId,
-      activate: false
-    })
+    openDocPreviewTab(state, { filePath: params.filePath, worktreeId, activate: false }, placement)
     return
   }
 
   state.createBrowserTab(worktreeId, plan.url, {
     title: plan.title,
-    targetGroupId,
+    ...placement,
     activate: true
   })
 }
