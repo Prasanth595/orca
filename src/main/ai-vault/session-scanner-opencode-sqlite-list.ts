@@ -51,6 +51,7 @@ function readSessionRows(db: SyncDatabase, limit: number): SessionRow[] {
   }
   const limited = Number.isFinite(limit)
   const statement = db.prepare(buildSessionListQuery(db, limited))
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the query above selects exactly these columns.
   return (limited ? statement.all(limit) : statement.all()) as SessionRow[]
 }
 
