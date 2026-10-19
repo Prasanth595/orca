@@ -42,7 +42,7 @@ export function createPlaceholderTerminal() {
   const renderer = addon._renderer
   vi.spyOn(renderer, 'cellSize', 'get').mockReturnValue({ width: 10, height: 10 })
   const drawImage = vi.fn()
-  renderer._layers.set('top', { drawImage, clearRect() {}, canvas: { remove() {} } })
+  renderer._layers.set('top', { drawImage, clearRect() {}, canvas: { style: {}, remove() {} } })
   return {
     terminal,
     addon,

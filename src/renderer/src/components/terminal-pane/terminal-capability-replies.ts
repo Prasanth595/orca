@@ -6,6 +6,11 @@ import {
   terminalOscColorQuerySlotsForBody,
   type TerminalOscColorQuerySlot
 } from '../../../../shared/terminal-osc-color-reply'
+import {
+  formatTerminalPixelSizeReply,
+  roundTerminalCellPixelSize,
+  type TerminalCellPixelSize
+} from '../../../../shared/terminal-cell-pixel-size'
 import { guardParserHandler } from './terminal-parser-handler-guard'
 
 export const DEFAULT_DA1_RESPONSE = '\x1b[?1;2c'
@@ -49,29 +54,13 @@ function isPrimaryDeviceAttributesQuery(params: (number | number[])[]): boolean 
   return params.length === 0 || (params.length === 1 && params[0] === 0)
 }
 
-function getTerminalScreenElement(
-  terminal: Pick<Terminal, 'element'>
-): Pick<HTMLElement, 'getBoundingClientRect'> | null {
-  if (typeof terminal.element?.querySelector !== 'function') {
+function measureCellPixels(terminal: Pick<Terminal, 'dimensions'>): TerminalCellPixelSize | null {
+  const cell = terminal.dimensions?.device.cell
+  if (!cell) {
     return null
   }
-  return terminal.element.querySelector('.xterm-screen') ?? null
-}
-
-function measureCellPixels(
-  terminal: Pick<Terminal, 'cols' | 'rows' | 'element'>
-): { width: number; height: number } | null {
-  if (terminal.cols <= 0 || terminal.rows <= 0) {
-    return null
-  }
-  const rect = getTerminalScreenElement(terminal)?.getBoundingClientRect()
-  if (!rect || !(rect.width > 0) || !(rect.height > 0)) {
-    return null
-  }
-  return {
-    width: Math.max(1, Math.round(rect.width / terminal.cols)),
-    height: Math.max(1, Math.round(rect.height / terminal.rows))
-  }
+  // Apps rasterize images at this cell size, so CSS pixels make HiDPI images render at 1x.
+  return roundTerminalCellPixelSize(cell)
 }
 
 function disposeAll(disposables: IDisposable[]): void {
@@ -104,18 +93,19 @@ function sendTerminalOscColorQueryRepliesForSlots(
 }
 
 export function createTerminalPixelSizeQueryResponder(
-  terminal: Pick<Terminal, 'cols' | 'rows' | 'element'>,
+  terminal: Pick<Terminal, 'dimensions'>,
   sendInput: (data: string) => boolean | void
 ): (data: string) => void {
   let pending = ''
-  const respond = (reportsWindowPixels: boolean): void => {
+  const respond = (query: 14 | 16): void => {
     const cell = measureCellPixels(terminal)
     if (!cell) {
       return
     }
-    const width = cell.width * (reportsWindowPixels ? terminal.cols : 1)
-    const height = cell.height * (reportsWindowPixels ? terminal.rows : 1)
-    sendInput(`\x1b[${reportsWindowPixels ? 4 : 6};${height};${width}t`)
+    const reply = formatTerminalPixelSizeReply(query, cell, terminal.dimensions?.device.canvas)
+    if (reply) {
+      sendInput(reply)
+    }
   }
   return (data) => {
     const input = pending + data
@@ -128,12 +118,12 @@ export function createTerminalPixelSizeQueryResponder(
       }
       const query = input.slice(queryIndex, queryIndex + 5)
       if (query === '\x1b[14t') {
-        respond(true)
+        respond(14)
         offset = queryIndex + 5
         continue
       }
       if (query === '\x1b[16t') {
-        respond(false)
+        respond(16)
         offset = queryIndex + 5
         continue
       }
