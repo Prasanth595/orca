@@ -25,6 +25,8 @@ import { acquireGitAdmission } from './git-subprocess-admission'
 import { GitCommandTimeoutError, gitCommandTimeoutMs } from './git-command-timeout'
 import { classifyGitCommand } from '../../../shared/git-command-classification'
 import { createAbortError } from './abort-error'
+import { readCapturedGitBuffer, readCapturedGitString } from './captured-git-output'
+import { noteGitSpawnFailure, pendingKnownMissingGitCwdCheck } from './missing-git-spawn-cwd'
 
 /**
  * Async git command execution. Drop-in replacement for
@@ -60,6 +62,15 @@ async function gitExecFileAsyncUnlocked(
         false,
         effectiveOptions.captureWslLoginShellOutput
       )
+      const missingCwdCheck = pendingKnownMissingGitCwdCheck(
+        resolved,
+        options.signal,
+        options.encoding
+      )
+      if (missingCwdCheck) {
+        span?.setAttribute('git.known_missing_cwd', true)
+        await missingCwdCheck
+      }
       const policy =
         effectiveOptions.useConfiguredSshCommandForNetwork || classifyGitCommand(args) === 'network'
           ? await buildNetworkSshPolicyEnv(effectiveOptions, args)
@@ -107,7 +118,8 @@ async function gitExecFileAsyncUnlocked(
             )
           : execFileCapture(command.binary, command.args, captureOptions)
         // Why: a dead WSL distro fails with an empty stderr, so the span would carry no cause at all.
-        return captured.catch((error: unknown) => {
+        return captured.catch(async (error: unknown) => {
+          await noteGitSpawnFailure(error, command, options.signal)
           throw annotateWslHostFailure(error, command)
         })
       }
@@ -218,6 +230,11 @@ export async function gitExecFileAsyncBuffer(
       await environmentReady
     }
     resolved = resolveGitCommand(args, options, false, true)
+    const missingCwdCheck = pendingKnownMissingGitCwdCheck(resolved, options.signal, 'buffer')
+    if (missingCwdCheck) {
+      span?.setAttribute('git.known_missing_cwd', true)
+      await missingCwdCheck
+    }
     const grant = await acquireGitAdmission({
       args,
       cwd: options.cwd,
@@ -245,6 +262,9 @@ export async function gitExecFileAsyncBuffer(
         ...(timeoutMs === undefined
           ? {}
           : { createTimeoutError: () => new GitCommandTimeoutError(timeoutMs) })
+      }).catch(async (error: unknown) => {
+        await noteGitSpawnFailure(error, resolved, options.signal)
+        throw error
       })
       if (!Buffer.isBuffer(stdout)) {
         throw new Error('Git buffer capture returned text instead of bytes')
@@ -258,41 +278,6 @@ export async function gitExecFileAsyncBuffer(
       }
     }
   })
-}
-
-/**
- * Slice a fenced payload out of raw bytes.
- *
- * Why bytes: blob content may be binary, so decoding to a string to find the
- * fence would corrupt it. Returns the buffer untouched when the command was not
- * fenced or the fence is absent.
- */
-function readCapturedGitBuffer(stdout: Buffer, resolved: ResolvedCommand): Buffer {
-  const captured = resolved.captured
-  if (!captured) {
-    return stdout
-  }
-  const beginIndex = stdout.lastIndexOf(captured.beginMarker, undefined, 'utf8')
-  if (beginIndex === -1) {
-    return stdout
-  }
-  const payloadStart = beginIndex + Buffer.byteLength(captured.beginMarker, 'utf8')
-  const endIndex = stdout.indexOf(captured.endMarker, payloadStart, 'utf8')
-  return endIndex === -1 ? stdout.subarray(payloadStart) : stdout.subarray(payloadStart, endIndex)
-}
-
-function readCapturedGitString(stdout: string, resolved: ResolvedCommand): string {
-  const captured = resolved.captured
-  if (!captured) {
-    return stdout
-  }
-  const beginIndex = stdout.lastIndexOf(captured.beginMarker)
-  if (beginIndex === -1) {
-    return stdout
-  }
-  const payloadStart = beginIndex + captured.beginMarker.length
-  const endIndex = stdout.indexOf(captured.endMarker, payloadStart)
-  return endIndex === -1 ? stdout.slice(payloadStart) : stdout.slice(payloadStart, endIndex)
 }
 
 // Why: sync git blocks the main thread; a dead network drive can hang git for minutes without a timeout (issue #7225's 127s freeze).
