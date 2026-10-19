@@ -35,7 +35,11 @@ export function restorePersistedStructuredLaunchState(
       ...(record.resumeFrom ? { resumeFrom: record.resumeFrom } : {}),
       ...(record.seedOptions ? { seedOptions: record.seedOptions } : {}),
       ...(record.firstMessage ? { firstMessage: record.firstMessage } : {}),
+      ...(record.optionsMode ? { optionsMode: record.optionsMode } : {}),
       ...(record.options ? { options: record.options } : {}),
+      ...(record.explicitLaunchOptions
+        ? { explicitLaunchOptions: record.explicitLaunchOptions }
+        : {}),
       ...(record.createMessageSupport === undefined
         ? {}
         : { createMessageSupport: record.createMessageSupport })
@@ -61,7 +65,7 @@ export function restorePersistedStructuredLaunchState(
     cancelled: false,
     onVisibilityChanged: undefined,
     callers,
-    selection: { seed: intent.seedOptions, held: {} }
+    selection: { seed: intent.seedOptions, explicit: intent.explicitLaunchOptions, held: {} }
   }
   callers.outcome = record.lifecycle === 'failed' ? 'failed' : 'unknown'
   callers.failedAt = record.failedAt

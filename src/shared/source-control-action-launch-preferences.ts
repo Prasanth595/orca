@@ -1,0 +1,48 @@
+import {
+  findCatalogModel,
+  getAgentSessionOptionCatalog,
+  type CatalogOption
+} from './agent-session-option-catalog'
+import type { SourceControlActionRecipe } from './source-control-ai-actions'
+import { isTuiAgent } from './tui-agent-config'
+import type { TuiAgent } from './tui-agent'
+import { isAgentSessionHandleProvider } from './agent-session-provider-handle'
+import { STRUCTURED_LAUNCH_SEED_OPTION_IDS } from './native-chat-session-option-defaults'
+
+/** Agents whose model an action can pick: the ones whose session catalog lists models. */
+export function sourceControlActionAgentPicksModel(
+  agent: string | null | undefined
+): agent is TuiAgent {
+  return isTuiAgent(agent) && Boolean(getAgentSessionOptionCatalog(agent)?.models.length)
+}
+
+/** Structured controls only; terminal-composed options have no chat implementation. */
+export function sourceControlActionChatOptions(agent: TuiAgent, modelId: string): CatalogOption[] {
+  const catalog = getAgentSessionOptionCatalog(agent)
+  const options =
+    findCatalogModel(catalog ?? { models: [], modelApply: {} }, modelId)?.options ??
+    catalog?.unknownModelOptions ??
+    []
+  return options.filter(
+    (option) =>
+      !option.apply.composedIntoModel &&
+      (isAgentSessionHandleProvider(agent)
+        ? STRUCTURED_LAUNCH_SEED_OPTION_IDS.some((id) => id === option.id)
+        : option.id === 'effort')
+  )
+}
+
+/** The resolved agent alone can receive its bound action choice. */
+export function resolveSourceControlActionSessionOptions(
+  recipe: Pick<SourceControlActionRecipe, 'agentId' | 'launchPreferences'>,
+  agent: TuiAgent
+): Readonly<Record<string, string>> | undefined {
+  const preferences = recipe.launchPreferences
+  if (!preferences || preferences.agentId !== agent) {
+    return undefined
+  }
+  return {
+    ...preferences.options,
+    model: preferences.model
+  }
+}

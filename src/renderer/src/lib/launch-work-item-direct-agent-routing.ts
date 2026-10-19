@@ -1,8 +1,17 @@
+import { agentLaunchCommandErrorMessage } from '@/lib/launch-work-item-direct-messages'
+import { toast } from 'sonner'
+import {
+  deliverLaunchPromptToAgentTab,
+  seedNativeChatLaunchDraftForAgentTab
+} from '@/lib/agent-launch-prompt-delivery'
+import {
+  buildDirectWorkItemAgentStartupPlan,
+  notifyDirectWorkItemAgentStartTimeout
+} from '@/lib/launch-work-item-direct-agent'
 import type { TuiAgent } from '../../../shared/tui-agent'
 import type { AppState } from '@/store/types'
 import { TUI_AGENT_CONFIG } from '../../../shared/tui-agent-config'
 import { isTuiAgentEnabled, pickTuiAgent } from '../../../shared/tui-agent-selection'
-import { buildDirectWorkItemAgentStartupPlan } from '@/lib/launch-work-item-direct-agent'
 import type { AgentSessionLaunchPlan } from '@/lib/agent-session-launch-plan'
 import {
   resolveExecutionHostAgentStartupShell,
@@ -111,4 +120,56 @@ export function beginDirectWorkItemStructuredLaunch(args: {
     structuredLaunch: true,
     primaryTabId: launch.tab?.id ?? args.primaryTabId
   }
+}
+
+export function finishDirectWorkItemPrompt(args: {
+  primaryTabId: string | null
+  effectiveAgent: TuiAgent | null
+  promptDelivery: PromptDelivery
+  draftContent: string
+  startupPlan: ReturnType<typeof buildDirectWorkItemAgentStartupPlan>['startupPlan']
+  draftLaunchedNatively: boolean
+  startupPlanFailed: boolean
+}): boolean {
+  const {
+    primaryTabId,
+    effectiveAgent,
+    promptDelivery,
+    draftContent,
+    startupPlan,
+    draftLaunchedNatively,
+    startupPlanFailed
+  } = args
+  if (startupPlanFailed) {
+    toast.error(agentLaunchCommandErrorMessage())
+    return false
+  }
+
+  if (primaryTabId && effectiveAgent && promptDelivery === 'draft') {
+    // Why: the draft rides in on argv or the startup payload, so no paste runs
+    // below; mirror it into chat the way the new-tab launcher does.
+    seedNativeChatLaunchDraftForAgentTab({
+      tabId: primaryTabId,
+      agent: effectiveAgent,
+      text: draftContent
+    })
+  }
+  if (
+    primaryTabId &&
+    startupPlan &&
+    !draftLaunchedNatively &&
+    !(promptDelivery === 'draft' && startupPlan.draftPrompt)
+  ) {
+    const submit = promptDelivery === 'submit-after-ready'
+    const agent = startupPlan.agent
+    void deliverLaunchPromptToAgentTab({
+      tabId: primaryTabId,
+      agent,
+      content: draftContent,
+      submit,
+      forcePaste: submit,
+      onTimeout: () => notifyDirectWorkItemAgentStartTimeout(agent, submit)
+    })
+  }
+  return true
 }

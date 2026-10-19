@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
 import { sourceControlActionRecipeMatchesTarget } from './source-control-action-recipe-match'
 import { resolveSourceControlAgentSaveTarget } from './source-control-agent-action-dialog-support'
+import { resolveSourceControlActionSessionOptions } from '../../../../shared/source-control-action-launch-preferences'
 
 type RunSourceControlAgentActionStartArgs = {
   selectedAgent: TuiAgent
@@ -21,7 +22,7 @@ type RunSourceControlAgentActionStartArgs = {
   agentArgs: string
   /** False when the launch would be structured native chat, which reads no CLI arguments. */
   agentArgsApply: boolean
-  commandTemplate: string
+  recipe: SourceControlActionRecipe
   saveTargetValue: string
   actionId: SourceControlLaunchActionId
   repoId?: string | null
@@ -37,6 +38,8 @@ type RunSourceControlAgentActionStartArgs = {
     commandInput: string
     /** Omitted when CLI arguments do not apply, so the launch resolves the global setting. */
     agentArgs?: string
+    /** The action's saved model and effort, on either route. */
+    sessionOptions?: Readonly<Record<string, string>>
   }) => boolean | Promise<boolean>
   onSaveAgentDefault?: (
     target: SourceControlAiWriteTarget,
@@ -61,7 +64,7 @@ export async function runSourceControlAgentActionStart({
   trimmedCommandInput,
   agentArgs,
   agentArgsApply,
-  commandTemplate,
+  recipe,
   saveTargetValue,
   actionId,
   repoId,
@@ -85,6 +88,8 @@ export async function runSourceControlAgentActionStart({
   // Why: `undefined` is what makes the launch fall back to the global Agents arguments;
   // an empty string would beat that fallback and silently suppress them.
   const launchAgentArgs = agentArgsApply ? agentArgs : undefined
+  // The dialog edits agent, arguments and prompt; the model stays the saved one for that agent.
+  const sessionOptions = resolveSourceControlActionSessionOptions(recipe, selectedAgent)
   const notifyLaunchAccepted = (): void => {
     if (launchAcceptedNotified) {
       return
@@ -96,7 +101,8 @@ export async function runSourceControlAgentActionStart({
     launched = await onStart({
       agent: selectedAgent,
       commandInput: trimmedCommandInput,
-      agentArgs: launchAgentArgs
+      agentArgs: launchAgentArgs,
+      ...(sessionOptions ? { sessionOptions } : {})
     })
     if (launched) {
       notifyLaunchAccepted()
@@ -109,6 +115,7 @@ export async function runSourceControlAgentActionStart({
       groupId: groupId ?? worktreeId,
       prompt: trimmedCommandInput,
       agentArgs: launchAgentArgs,
+      ...(sessionOptions ? { sessionOptions } : {}),
       promptDelivery,
       launchPlatform,
       launchSource
@@ -149,24 +156,19 @@ export async function runSourceControlAgentActionStart({
   }
 
   const saveTarget = resolveSourceControlAgentSaveTarget(saveTargetValue, repoId)
-  const launchRecipe = {
-    agentId: selectedAgent,
-    commandInputTemplate: commandTemplate,
-    agentArgs
-  }
   const launchRecipeAlreadySaved = Boolean(
     saveTarget &&
     sourceControlActionRecipeMatchesTarget({
       actionId,
       target: saveTarget,
-      recipe: launchRecipe,
+      recipe,
       settings,
       repo
     })
   )
   if (saveTarget && onSaveAgentDefault && !launchRecipeAlreadySaved) {
     try {
-      await onSaveAgentDefault(saveTarget, actionId, launchRecipe)
+      await onSaveAgentDefault(saveTarget, actionId, recipe)
     } catch (error) {
       // Why: the prompt already reached the agent; a failed recipe save must not strand the
       // caller's accepted-launch bookkeeping (neither onLaunched nor onLaunchAborted would fire).

@@ -134,8 +134,8 @@ export async function openDeclinedStructuredLaunchTerminal(args: {
   terminal?: DeclinedStructuredLaunchTerminalOptions
 }): Promise<StructuredLaunchTerminal> {
   // Loaded late: the new-tab launcher begins these launches.
-  const { launchAgentInNewTab } = await import('@/lib/launch-agent-in-new-tab')
-  const result = launchAgentInNewTab({
+  const { launchAgentInNewTabWithOutcome } = await import('@/lib/launch-agent-in-new-tab')
+  const result = launchAgentInNewTabWithOutcome({
     ...args.terminal,
     agent: args.plan.agent,
     worktreeId: args.worktreeId,
@@ -151,6 +151,9 @@ export async function openDeclinedStructuredLaunchTerminal(args: {
       worktreeId: args.worktreeId
     })
   })
+  if (result && 'refused' in result) {
+    return { opened: false, promptDeliveryResult: Promise.resolve(result.refused) }
+  }
   return {
     opened: result !== null,
     ...(result?.promptDeliveryResult ? { promptDeliveryResult: result.promptDeliveryResult } : {})

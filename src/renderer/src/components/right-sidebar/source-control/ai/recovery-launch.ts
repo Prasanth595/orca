@@ -8,12 +8,12 @@ import {
   ensureDetectedAgentsForWorktree,
   type WorktreeAgentInventoryState
 } from '@/lib/agent-detection-target-inventory'
-import { planAgentCliArgsSuffix } from '@/lib/tui-agent-startup'
 import {
   pickSourceControlLaunchAgent,
   readSourceControlLaunchRecipeAgentId
 } from '../../../../../../shared/source-control-launch-agent-selection'
 import { isTuiAgentEnabled } from '../../../../../../shared/tui-agent-selection'
+import { resolveSourceControlActionSessionOptions } from '../../../../../../shared/source-control-action-launch-preferences'
 import type {
   SourceControlActionRecipe,
   SourceControlLaunchActionId
@@ -109,16 +109,6 @@ export async function launchSourceControlRecoveryAgentWithDefault({
 
   const store = getStoreState()
   const savedRecipe = getLaunchActionRecipe(actionId)
-  const agentArgsPlan = planAgentCliArgsSuffix(
-    savedRecipe.agentArgs,
-    activeSourceControlLaunchPlatform === 'win32' ? 'powershell' : 'posix'
-  )
-  if (!agentArgsPlan.ok) {
-    // Why: saved launch recipes are shared with direct launches; reject bad
-    // argv before remote agent detection or terminal creation has side effects.
-    toast.error(agentArgsPlan.error)
-    return false
-  }
   if (!basePrompt) {
     toast.error(copy.promptUnavailable)
     return false
@@ -154,6 +144,7 @@ export async function launchSourceControlRecoveryAgentWithDefault({
     toast.error(copy.noEnabledAgent)
     return false
   }
+  const sessionOptions = resolveSourceControlActionSessionOptions(savedRecipe, agent)
   const result = launchAgentInNewTab({
     requestId: newAgentLaunchRequestId(),
     agent,
@@ -161,6 +152,7 @@ export async function launchSourceControlRecoveryAgentWithDefault({
     groupId: activeGroupId ?? activeWorktreeId,
     prompt,
     agentArgs: savedRecipe.agentArgs,
+    ...(sessionOptions ? { sessionOptions } : {}),
     promptDelivery: 'submit-after-ready',
     launchPlatform: activeSourceControlLaunchPlatform,
     launchSource: 'source_control_recovery'

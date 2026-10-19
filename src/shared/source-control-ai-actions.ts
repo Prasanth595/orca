@@ -1,6 +1,7 @@
 import { isCustomAgentId, type CustomAgentId } from './commit-message-agent-spec'
 import { isTuiAgent } from './tui-agent-config'
 import type { TuiAgent } from './tui-agent'
+import { isAgentSessionOptions } from './agent-session-record'
 
 // Why: the variable registry lives in `./source-control-ai-action-variables` for max-lines
 // headroom. It is deliberately not re-exported here — one import path per symbol keeps a
@@ -19,10 +20,19 @@ export type SourceControlLaunchActionId =
 export type SourceControlActionId = SourceControlTextActionId | SourceControlLaunchActionId
 export type AiActionId = AiTextActionId | SourceControlLaunchActionId
 
+/** The bound agent namespace is independent of the recipe’s default-agent selection. */
+export type SourceControlActionLaunchPreferences = {
+  agentId: TuiAgent
+  model: string
+  options?: Record<string, string>
+}
+
 export type SourceControlActionRecipe = {
   agentId?: TuiAgent | CustomAgentId | null
   commandInputTemplate?: string
   agentArgs?: string
+  /** Only the bound agent’s chat receives these values. */
+  launchPreferences?: SourceControlActionLaunchPreferences
 }
 
 export type SourceControlAiActionDefaults = Partial<Record<AiActionId, SourceControlActionRecipe>>
@@ -123,7 +133,42 @@ export function normalizeSourceControlActionRecipe(
   if (typeof value.agentArgs === 'string') {
     normalized.agentArgs = value.agentArgs
   }
+  const launchPreferences = normalizeSourceControlActionLaunchPreferences(
+    value.launchPreferences,
+    agentId
+  )
+  if (launchPreferences) {
+    normalized.launchPreferences = launchPreferences
+  }
   return Object.keys(normalized).length > 0 ? normalized : undefined
+}
+
+export function normalizeSourceControlActionLaunchPreferences(
+  value: unknown,
+  recipeAgent?: unknown
+): SourceControlActionLaunchPreferences | undefined {
+  if (!isRecord(value) || typeof value.model !== 'string' || !value.model.trim()) {
+    return undefined
+  }
+  const agentId = value.agentId ?? recipeAgent
+  if (!isTuiAgent(agentId)) {
+    return undefined
+  }
+  const options =
+    value.options ?? (typeof value.effort === 'string' ? { effort: value.effort } : {})
+  if (
+    !isAgentSessionOptions(options) ||
+    Object.keys(options).some(
+      (key) => !isSafeRecordKey(key) || ['agentId', 'model', 'permissionMode'].includes(key)
+    )
+  ) {
+    return undefined
+  }
+  const model = value.model.trim()
+  if (!isAgentSessionOptions({ ...options, model })) {
+    return undefined
+  }
+  return { agentId, model, ...(Object.keys(options).length ? { options } : {}) }
 }
 
 export function normalizeSourceControlAiActionDefaults(
@@ -156,7 +201,8 @@ export function readSourceControlActionDefault(
     ...(typeof value?.commandInputTemplate === 'string'
       ? { commandInputTemplate: value.commandInputTemplate.trim() }
       : {}),
-    ...(typeof value?.agentArgs === 'string' ? { agentArgs: value.agentArgs.trim() } : {})
+    ...(typeof value?.agentArgs === 'string' ? { agentArgs: value.agentArgs.trim() } : {}),
+    ...(value?.launchPreferences ? { launchPreferences: value.launchPreferences } : {})
   }
 }
 
@@ -189,7 +235,13 @@ export function setSourceControlActionAgentDefault(
   actionId: AiActionId,
   agentId: TuiAgent | CustomAgentId | null
 ): SourceControlAiActionDefaults {
-  return setSourceControlActionDefault(defaults, actionId, { agentId })
+  const current = defaults?.[actionId]
+  if (current?.agentId === agentId || !current?.launchPreferences) {
+    return setSourceControlActionDefault(defaults, actionId, { agentId })
+  }
+  // A model id names one agent's model, so it does not survive a change of agent.
+  const { launchPreferences: _previousAgentModel, ...rest } = current
+  return { ...defaults, [actionId]: { ...rest, agentId } }
 }
 
 export function renderSourceControlActionCommandTemplate(

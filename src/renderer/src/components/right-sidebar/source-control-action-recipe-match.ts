@@ -17,12 +17,14 @@ type NormalizedSourceControlActionRecipe = {
   agentId: SourceControlActionRecipe['agentId'] | null
   commandInputTemplate: string
   agentArgs: string
+  launchPreferences: string
 }
 
 type PersistedSourceControlActionRecipe = {
   agentId?: SourceControlActionRecipe['agentId']
   commandInputTemplate?: string | null
   agentArgs?: string | null
+  launchPreferences?: SourceControlActionRecipe['launchPreferences']
 }
 
 function normalizeSourceControlActionRecipeForComparison(
@@ -35,7 +37,16 @@ function normalizeSourceControlActionRecipeForComparison(
       typeof recipe?.commandInputTemplate === 'string'
         ? recipe.commandInputTemplate.trim()
         : DEFAULT_SOURCE_CONTROL_ACTION_COMMAND_TEMPLATES[actionId],
-    agentArgs: typeof recipe?.agentArgs === 'string' ? recipe.agentArgs.trim() : ''
+    agentArgs: typeof recipe?.agentArgs === 'string' ? recipe.agentArgs.trim() : '',
+    launchPreferences: recipe?.launchPreferences
+      ? JSON.stringify([
+          recipe.launchPreferences.agentId,
+          recipe.launchPreferences.model,
+          Object.entries(recipe.launchPreferences.options ?? {}).sort(([a], [b]) =>
+            a.localeCompare(b)
+          )
+        ])
+      : ''
   }
 }
 
@@ -46,7 +57,8 @@ function sourceControlActionRecipesMatch(
   return (
     left.agentId === right.agentId &&
     left.commandInputTemplate === right.commandInputTemplate &&
-    left.agentArgs === right.agentArgs
+    left.agentArgs === right.agentArgs &&
+    left.launchPreferences === right.launchPreferences
   )
 }
 
