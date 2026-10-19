@@ -33,7 +33,7 @@ import { structuredAgentSessionHandingOver } from './structured-agent-session-ha
 
 export type StructuredAgentSessionCurrentWorkJournal = Pick<
   AgentSessionJournal,
-  'runningTurn' | 'itemFence' | 'visitItems' | 'submissions' | 'wroteBeforeOpen' | 'item' | 'cursor'
+  'runningTurn' | 'itemFence' | 'visitItems' | 'submissions' | 'acceptedBeforeOpen' | 'item' | 'cursor'
 >
 
 /** What the host knows of who runs the chat now. */
@@ -104,17 +104,18 @@ export function structuredAgentSessionReplacedRuntimeEnded(
   )
 }
 
-/** `StructuredAgentSessionCurrentWork.handsOver`, for a reader that needs no other answer. */
-function structuredAgentSessionHandsOver(
-  journal: Pick<AgentSessionJournal, 'wroteBeforeOpen'>,
+/** `StructuredAgentSessionCurrentWork.handsOver`, for a reader that needs no other answer: the one
+ *  rule for whether a queued send is this handle's to deliver, withdraw or wait on. */
+export function structuredAgentSessionHandsOver(
+  journal: Pick<AgentSessionJournal, 'acceptedBeforeOpen'>,
   submission: Pick<
     AgentJournalSubmission,
-    'handoverRecorded' | 'dispatchState' | 'handedOverAt' | 'acceptedSequence'
+    'handoverRecorded' | 'dispatchState' | 'handedOverAt' | 'clientMessageId'
   >
 ): boolean {
   return (
     isQueuedAgentJournalSubmission(submission) &&
-    !journal.wroteBeforeOpen(submission.acceptedSequence)
+    !journal.acceptedBeforeOpen(submission.clientMessageId)
   )
 }
 
@@ -217,7 +218,7 @@ export class StructuredAgentSessionCurrentWork {
 
   /** Whether this process may hand this send over: accepted here, never by an earlier host process.
    *  Derived from where the row sits, so nothing has to be written first; keeping an earlier
-   *  process's send as a card is the reconciliation pass's bookkeeping (`holdUnsentSends`). */
+   *  process's send as a card is bookkeeping (`holdUnsentSends`) whose failure gates nothing. */
   handsOver(submission: AgentJournalSubmission): boolean {
     return structuredAgentSessionHandsOver(this.journal, submission)
   }

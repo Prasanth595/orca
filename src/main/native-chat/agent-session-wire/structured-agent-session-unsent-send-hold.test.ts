@@ -16,6 +16,7 @@ import { openAgentSessionJournal } from '../agent-session-journal/journal-store-
 import { openTestJournalHostDatabase } from '../agent-session-journal/journal-host-database-test-support'
 import { journalIdentityFor } from './structured-agent-session-attach'
 import { attachParamsForRecord } from './structured-agent-session-conversation-open'
+import { structuredAgentSessionCompactBody } from './structured-agent-session-command-turn'
 import {
   structuredAgentSessionHostInstance,
   structuredQueuePauses
@@ -601,11 +602,11 @@ describe('what is not kept', () => {
     )
   })
 
-  it('the delivery step keeps one the open could not settle, and hands nothing over', async () => {
+  it.each([2, 4])('settles an earlier send after %i failed writes', async (failures) => {
     const id = await acceptWhileStarting(sendRequest('open write failed'))
+    const kept = failures === 2
     const resolve = AgentSessionJournal.prototype.resolveDispatch
-    // The open's keep and its plain-rejection fallback both fail.
-    let failures = 2
+    // The open's two writes fail; with four failures, the loop's two writes fail too.
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     vi.spyOn(AgentSessionJournal.prototype, 'resolveDispatch').mockImplementation(function (
       this: AgentSessionJournal,
@@ -621,9 +622,61 @@ describe('what is not kept', () => {
     // The open's write failed; a new send wakes the delivery loop, whose first step settles it.
     const next = rig.send('wakes the loop')
     await next.result
-    await eventually(async () => expect(await rig.drafts()).toEqual([{ messageId: id, ...KEPT }]))
+    await eventually(async () =>
+      expect(await rig.drafts()).toEqual(kept ? [{ messageId: id, ...KEPT }] : [])
+    )
     await eventually(() => expect(dispatchedTexts()).toEqual(['wakes the loop']))
     expect(await rig.submission(id)).toMatchObject({ dispatchState: 'rejected', ...HOST_RESTARTED })
+    if (!kept) {
+      expect(await rig.submission(id)).not.toHaveProperty('keptAsQueuedMessageId')
+    }
+  })
+
+  it('failed cleanup preserves old sends without giving a new message stale command retry advice', async () => {
+    const body = structuredAgentSessionCompactBody()
+    const message = sendRequest('never kept')
+    const commandId = await acceptWhileStarting(
+      { body, envelope: rig.envelope({ body }, 'agentSession.send', hostTestOperationId()) },
+      message
+    )
+    const id = message.envelope.clientOperationId
+    const resolve = AgentSessionJournal.prototype.resolveDispatch
+    let failing = true
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    vi.spyOn(AgentSessionJournal.prototype, 'resolveDispatch').mockImplementation(function (
+      this: AgentSessionJournal,
+      ...args: Parameters<AgentSessionJournal['resolveDispatch']>
+    ) {
+      if (failing && [id, commandId].includes(args[0].clientMessageId)) {
+        return Promise.reject(new Error('disk busy'))
+      }
+      return resolve.apply(this, args)
+    })
+    await quitRestart()
+    const oldCommand = await rig.submission(commandId)
+    rig.failNextStart(new Error('the agent could not start'))
+    const failed = rig.send('ordinary message whose start fails')
+    await failed.result
+    const reason = "Codex couldn't restart. Send your message to try again."
+    await eventually(async () =>
+      expect(await rig.submission(failed.id)).toMatchObject({ dispatchState: 'rejected', reason })
+    )
+    expect((await rig.host.journalSnapshot(SESSION)).items).toContainEqual(
+      expect.objectContaining({ body: expect.objectContaining({ kind: 'status', text: reason }) })
+    )
+    expect(await rig.submission(commandId)).toEqual(oldCommand)
+    expect(oldCommand).toMatchObject({ dispatchState: 'pending', handoverRecorded: true })
+    expect(oldCommand?.handedOverAt).toBeUndefined()
+    await rig.send('sent anyway').result
+    await eventually(() => expect(dispatchedTexts()).toEqual(['sent anyway']))
+    // A Stop withdraws only this process's sends; the earlier one waits for a keep, unsent.
+    expect(await rig.stop()).toMatchObject({ ok: true })
+    expect(await rig.submission(id)).toMatchObject({ dispatchState: 'pending' })
+    expect(await rig.drafts()).toEqual([])
+
+    failing = false
+    await rig.send('keeps it').result
+    await eventually(async () => expect(await rig.drafts()).toEqual([{ messageId: id, ...KEPT }]))
   })
 })
 

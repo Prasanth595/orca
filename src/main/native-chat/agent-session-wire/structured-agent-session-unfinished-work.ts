@@ -12,6 +12,7 @@ import type { UnopenedSendJournal } from './structured-agent-session-unopened-se
 
 export type DeadGenerationJournal = UnopenedSendJournal & {
   appendPlannedLifecycleBatch: AgentSessionJournal['appendPlannedLifecycleBatch']
+  acceptedBeforeOpen: AgentSessionJournal['acceptedBeforeOpen']
   pendingSubmissions?: AgentSessionJournal['pendingSubmissions']
   itemFence: AgentSessionJournal['itemFence']
 }
