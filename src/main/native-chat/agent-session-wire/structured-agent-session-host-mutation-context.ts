@@ -9,23 +9,29 @@ import {
 
 /** The mutation collaborators share the same attach and lifetime bindings as the host. */
 export function structuredAgentSessionHostMutationContext(
-  attach: StructuredAgentSessionAttachContext & { wakeDelivery: (sessionId: string) => void },
+  attach: StructuredAgentSessionAttachContext,
   lifetime: StructuredAgentSessionConversationLifetime,
   delivery: StructuredAgentSessionClientDelivery,
-  wakeQueuedDrain: (sessionId: string) => void
+  wakeQueuedDrain: (sessionId: string) => void,
+  wakeDelivery: (sessionId: string) => void
 ): StructuredAgentSessionMutationContext {
   return {
     ...attach,
+    startupAttempts: attach.runtimeState.startupAttempts,
+    deliveryOrder: attach.runtimeState.deliveryOrder,
+    wakeDelivery,
     publish: (sessionId, journal) => attach.subscribers.publish(sessionId, journal),
     conversation: lifetime.conversation,
     readChildWork: delivery.readChildWork,
     publishChildWork: delivery.publishChildWork,
+    publishWorkChanged: delivery.publishGenerationEnded,
+    captureChildWorkStops: delivery.captureChildWorkStops,
+    childWorkOpen: delivery.childWorkOpen,
     childWorkIncomplete: delivery.childWorkIncomplete,
     ensureAgent: (sessionId) => ensureStructuredAgentSessionAgentForOperation(attach, sessionId),
     joinChildClose: (sessionId) => joinClosingStructuredAgentSessionChild(attach, sessionId),
     stopAgent: (sessionId, ending) => lifetime.stopAgent(sessionId, ending),
     wakeQueuedDrain,
-    acquireAborts: attach.runtimeState.acquireAborts,
-    optionRevisions: attach.runtimeState.optionRevisions
+    acquireAborts: attach.runtimeState.acquireAborts
   }
 }

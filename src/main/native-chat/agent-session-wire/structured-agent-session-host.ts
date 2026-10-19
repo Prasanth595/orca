@@ -7,7 +7,6 @@ import { StructuredConversationCommandController } from './structured-conversati
 // only through `conversation`, which opens it at rest; an agent is started only by work that needs
 // it, and the idle sweep is the one thing that puts it to rest.
 
-import type { AgentJournalSnapshot } from '../../../shared/agent-session-journal-types'
 import type { AgentSessionExecutionLocation } from '../../../shared/agent-session-record'
 import type * as SessionWire from '../../../shared/agent-session-wire'
 import { createRestartReconciler } from './structured-agent-session-restart-reconcile'
@@ -24,16 +23,11 @@ import {
   createStructuredAgentSessionConversationLifetime,
   type StructuredAgentSessionConversationLifetime
 } from './structured-agent-session-conversation-lifetime'
-import * as sessionTabs from './structured-agent-session-host-tabs'
+import type { StructuredAgentSessionAttachContext } from './structured-agent-session-attach-context'
+import { createStructuredAgentSessionTabSurface as createTabs } from './structured-agent-session-host-tabs'
 import { structuredAgentSessionMutationDelegates } from './structured-agent-session-host-mutations'
-import { settleStructuredAgentSessionLateDispatch } from './structured-agent-session-late-dispatch'
-import { releaseStructuredAgentSessionUnansweredDispatches } from './structured-agent-session-unanswered-dispatch-release'
 import { flushStructuredAgentSessionHost } from './structured-agent-session-host-teardown'
-import type {
-  StructuredAgentSessionCaller,
-  StructuredAgentSessionHostDeps,
-  StructuredAgentSessionReveal
-} from './structured-agent-session-host-types'
+import type * as HostTypes from './structured-agent-session-host-types'
 import { StructuredAgentSessionEventRecovery } from './structured-agent-session-event-recovery'
 import { StructuredAgentSessionBackgroundTaskChannel } from './structured-agent-session-background-task-channel'
 import { StructuredAgentSessionClientDelivery } from './structured-agent-session-client-delivery'
@@ -44,7 +38,6 @@ import {
 } from './structured-agent-session-restart-resume-host'
 import { structuredAgentSessionRestartResumeSurfaces } from './structured-agent-session-restart-resume-wiring'
 import * as conversation from './structured-agent-session-host-delivery'
-import { structuredAgentSessionConversationFence } from './structured-agent-session-provider-child'
 import { wireStructuredAgentSessionQueuedMessages } from './structured-agent-session-queued-wiring'
 import * as sessionLogger from './structured-agent-session-logger'
 export type { StructuredAgentSessionHostDeps } from './structured-agent-session-host-types'
@@ -73,7 +66,7 @@ export class StructuredAgentSessionHost {
     this.sessions,
     () => this.now(),
     () => this.deps,
-    (sessionId) => this.queued.onJournalActivity(sessionId),
+    this.queued,
     (sessionId) => this.restartResume.onAgentStarted(sessionId),
     (sessionId) => this.backgroundTasks.publish(sessionId),
     (sessionId) => this.backgroundTasks.read(sessionId)
@@ -91,7 +84,7 @@ export class StructuredAgentSessionHost {
   readonly restartResume: StructuredAgentSessionRestartResume
   private readonly transientRecovery: ReturnType<typeof transientRecovery.wireTransientRecovery>
 
-  constructor(readonly deps: StructuredAgentSessionHostDeps) {
+  constructor(readonly deps: HostTypes.StructuredAgentSessionHostDeps) {
     // Every collaborator reads this copy, so a logger that throws cannot fail what it reports.
     this.deps = deps = sessionLogger.withNeverThrowingLogger(deps)
     this.clientDelivery.watchAtRestCommands(deps.adapter)
@@ -123,6 +116,8 @@ export class StructuredAgentSessionHost {
       trackStart: (start) => this.tasks.trackAttach(start),
       ensureProviderChild: (sessionId, startedFor) =>
         agentStart.ensureStructuredAgentSessionAgent(this.attachContext(), sessionId, startedFor),
+      deliveryOrder: this.runtimeState.deliveryOrder,
+      readiness: (id, child) => this.runtimeState.startupAttempts.readiness(id, child),
       // Put to rest like an idle agent: the stop writes nothing, and the next start is new.
       stopOutgrownAgent: (id) => this.lifetime.stopAgent(id, { cause: 'evict', resting: true }),
       mutationContext: () => this.mutationContext(),
@@ -130,6 +125,7 @@ export class StructuredAgentSessionHost {
     })
     this.restore = reveal.createStructuredAgentSessionHostRestore(deps, {
       reconcileLeases: this.reconcileLeases,
+      reconcileRestartLeases: () => this.reconcileLeases(),
       resolveRecovery: (sessionId) => this.runtimeState.resolveRecovery(sessionId),
       serialize: (sessionId, task) => this.serialize(sessionId, task),
       hasSession: this.hasSession,
@@ -143,21 +139,20 @@ export class StructuredAgentSessionHost {
       store: deps.store,
       sessions: this.sessions,
       flushLifecycle: (sessionId) => this.runtimeState.lifecycleBarrier(sessionId),
-      publishFence: (sessionId, session) =>
-        this.subscribers.snapshot(
-          sessionId,
-          session.journal,
-          structuredAgentSessionConversationFence(deps.store, sessionId)
-        ),
       publishStatus: this.clientDelivery.publishStatusAndSettlement,
+      generationEnded: this.clientDelivery.publishGenerationEnded,
       serialize: (sessionId, task) => this.tasks.trackAttach(this.serialize(sessionId, task)),
       now: () => this.now(),
       runtimeState: this.runtimeState,
-      wakeDelivery: (sessionId) => this.conversationDelivery.loop.wake(sessionId)
+      wakeDelivery: (sessionId) => this.conversationDelivery.loop.wake(sessionId),
+      stopStartingChild: (...args) => this.lifetime.stopStartingChild(...args),
+      failStartingChild: (...args) => this.lifetime.failStartingChild(...args),
+      trackOpen: (open) => this.tasks.trackAttach(open)
     })
     this.restartResume = createStructuredAgentSessionRestartResume(deps, this.sessions, {
       ...structuredAgentSessionRestartResumeSurfaces(this, this.now),
       readChildWork: this.clientDelivery.readChildWork,
+      childWorkOpen: this.clientDelivery.childWorkOpen,
       publishStatus: this.clientDelivery.publishStatusAndSettlement
     })
     this.lifetime = createStructuredAgentSessionConversationLifetime({
@@ -167,7 +162,7 @@ export class StructuredAgentSessionHost {
       open: (sessionId) => this.conversationDelivery.open(sessionId),
       deliveryActive: (sessionId) => this.conversationDelivery.loop.isRunning(sessionId),
       closeStatus: (sessionId, options) => this.clientDelivery.closeSession(sessionId, options),
-      readChildWork: this.clientDelivery.readChildWork
+      childWorkOpen: this.clientDelivery.childWorkOpen
     })
     this.runtimeState.startLeaseRenewal()
     this.lifetime.idleSweep.start()
@@ -177,7 +172,10 @@ export class StructuredAgentSessionHost {
   private now = (): number => this.deps.now?.() ?? Date.now()
 
   hasSession = (sessionId: string): boolean => this.sessions.has(sessionId)
-  hasLoadedProviders = () => [...this.sessions.values()].some(({ child }) => child !== null)
+  /** Sessions whose agent child is starting or running. */
+  loadedSessionIds = (): string[] =>
+    [...this.sessions].flatMap(([sessionId, { child }]) => (child ? [sessionId] : []))
+  hasLoadedProviders = (): boolean => this.loadedSessionIds().length > 0
   sessionAgent = (sessionId: string) => this.deps.store.getRecord(sessionId)?.provider ?? null
 
   handleAdapterEvent = (event: Parameters<StructuredAgentSessionEventRecovery['handle']>[0]) =>
@@ -191,19 +189,21 @@ export class StructuredAgentSessionHost {
       sessions: this.sessions,
       now: () => this.now(),
       publishStatus: this.clientDelivery.publishStatus,
+      generationEnded: this.clientDelivery.publishGenerationEnded,
       wakeDelivery: (sessionId: string) => this.conversationDelivery.loop.wake(sessionId),
       endExitedChild: this.eventRecovery.endExitedChildUnderSerialize
     } satisfies StructuredAgentSessionLifetimeContext
   }
 
   /** The host's half of attaching, named so it cannot grow dependencies unnoticed. */
-  private attachContext() {
+  private attachContext(): StructuredAgentSessionAttachContext {
     return {
       ...this.lifetimeContext(),
       subscribers: this.subscribers,
       tasks: this.tasks,
       reconcileLeases: (sessionId) => this.reconcileLeases(sessionId),
-      serialize: this.serialize,
+      serialize: (sessionId, task) => this.serialize(sessionId, task),
+      openProviderChild: this.eventRecovery.openProviderChild,
       openConversation: this.conversationDelivery.open
     }
   }
@@ -220,11 +220,7 @@ export class StructuredAgentSessionHost {
 
   knownAgentIds = (): readonly string[] => providerSupport.knownAgentIds(this.deps)
 
-  private readonly tabs = sessionTabs.createStructuredAgentSessionTabSurface(
-    this,
-    this.sessions,
-    (sessionId) => this.clientDelivery.forgetStatus(sessionId)
-  )
+  private readonly tabs = createTabs(this, this.sessions, this.clientDelivery.forgetStatus)
   listSessionTabs = this.tabs.listSessionTabs
   getPersistedVisibleSessionTabIndex = this.tabs.getPersistedVisibleSessionTabIndex
   getSessionTabId = this.tabs.getSessionTabId
@@ -243,7 +239,7 @@ export class StructuredAgentSessionHost {
     this.restore.restoreReadableSessions(sessionIds)
 
   /** Make one persisted session addressable again; see `structured-agent-session-reveal`. */
-  revealSession = (sessionId: string): Promise<StructuredAgentSessionReveal> =>
+  revealSession = (sessionId: string): Promise<HostTypes.StructuredAgentSessionReveal> =>
     reveal.revealStructuredAgentSession(this.deps, sessionId, this.lifetime.conversation)
 
   private serialize = this.tasks.serialize.bind(this.tasks)
@@ -255,8 +251,6 @@ export class StructuredAgentSessionHost {
   /** Test barrier: every write has landed by its call's return, so no production path needs it. */
   flushStreamedEvents = (id: string): Promise<void> => this.runtimeState.flushEventSink(id)
 
-  // Trigger inlined rather than imported: `AgentSessionResumeTrigger` in shared is the canonical
-  // type, and this file has no line budget left for the import.
   /** Quit: no exit or recovery settled after this starts a child or hands a message over, and the
    *  queue hands no card over. */
   stopDelivery = (): void =>
@@ -281,7 +275,8 @@ export class StructuredAgentSessionHost {
       this.attachContext(),
       this.lifetime,
       this.clientDelivery,
-      (sessionId) => this.queued.drain.schedule(sessionId)
+      (sessionId) => this.queued.drain.schedule(sessionId),
+      (sessionId) => this.conversationDelivery.loop.wake(sessionId)
     )
 
   send: StructuredConversationCommandController['send'] = (caller, params) => {
@@ -315,7 +310,7 @@ export class StructuredAgentSessionHost {
     )
   readOptions = this.mutations.readOptions
 
-  rewind = (caller: StructuredAgentSessionCaller, params: AgentSessionRewindParams) =>
+  rewind = (caller: HostTypes.StructuredAgentSessionCaller, params: AgentSessionRewindParams) =>
     this.transientRecovery.beforeUserAction(params.envelope.sessionId, () =>
       rewindStructuredAgentSession(this.mutationContext(), this.attachContext(), caller, params)
     )
@@ -336,17 +331,19 @@ export class StructuredAgentSessionHost {
 
   /** The fully reduced timeline, for readers that cannot tolerate a page's ambiguity — rows are
    *  revised or tombstoned in place, so an item's ABSENCE from a bounded page proves nothing. */
-  journalSnapshot = async (sessionId: string): Promise<AgentJournalSnapshot> =>
+  journalSnapshot = async (sessionId: string) =>
     (await this.lifetime.conversation(sessionId)).journal.snapshot()
+
+  /** The host's projection of a held chat's current work (`structuredAgentSessionCurrentWork`). */
+  currentWork = this.clientDelivery.readCurrentWork
+  readCurrentRequests: StructuredAgentSessionBackgroundTaskChannel['currentRequests'] = (...args) =>
+    this.backgroundTasks.currentRequests(...args)
 
   subscribe = (input: AgentSessionSubscribeInput) => this.backgroundTasks.subscribe(input)
 
-  settleLateDispatch = (input: Parameters<typeof settleStructuredAgentSessionLateDispatch>[1]) =>
-    settleStructuredAgentSessionLateDispatch(this.mutationContext(), input)
-
-  releaseUnansweredDispatches = (
-    input: Parameters<typeof releaseStructuredAgentSessionUnansweredDispatches>[1]
-  ) => releaseStructuredAgentSessionUnansweredDispatches(this.mutationContext(), input)
+  settleLateDispatch = this.mutations.settleLateDispatch
+  /** What the live child holds changed with no row: every reader re-derives current work. */
+  publishWorkChanged: (sessionId: string) => void = this.clientDelivery.publishGenerationEnded
 
   publishChildWorkEvidence = this.clientDelivery.publishChildWork
   unsubscribe = (sessionId: string, id: string): void => this.subscribers.close(sessionId, id)

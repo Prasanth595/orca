@@ -1,9 +1,9 @@
-import type { OrcaRuntimeWithWaitForLeafPtyId as WaitForLeafPtyIdMethods } from '../orca-runtime-wait-for-leaf-pty-id'
-import { OrcaRuntimeWithWaitForMobileTerminalSurface } from '../orca-runtime-wait-for-mobile-terminal-surface'
-import { runtimeWorktreeIdsEqual } from '../runtime-worktree-path-identity'
+import type { OrcaRuntimeWithWaitForLeafPtyId as WaitForLeafPtyIdMethods } from '../terminal/view/renderer-terminal-snapshot'
+import { OrcaRuntimeWithWaitForMobileTerminalSurface } from '../terminal/view/mobile-terminal-surface'
 import { parsePaneKey } from '../../../shared/stable-pane-id'
 import type { RuntimePtyWorktreeRecord } from '../runtime-terminal-state-records'
 import type { RuntimeMobileSessionCreateTerminalResult } from '../../../shared/runtime-types'
+import { worktreeIdsEqual } from '../../../shared/worktree/id'
 
 export abstract class OrcaRuntimeWithRestoreLivePairedRendererSessionOwnedMobileTerminals extends OrcaRuntimeWithWaitForMobileTerminalSurface {
   protected abstract resolveHandleForTab(
@@ -19,7 +19,7 @@ export abstract class OrcaRuntimeWithRestoreLivePairedRendererSessionOwnedMobile
       if (
         !pty?.connected ||
         !pty.tabId ||
-        (worktreeId !== null && !runtimeWorktreeIdsEqual(pty.worktreeId, worktreeId))
+        (worktreeId !== null && !worktreeIdsEqual(pty.worktreeId, worktreeId))
       ) {
         continue
       }
@@ -134,7 +134,7 @@ export abstract class OrcaRuntimeWithRestoreLivePairedRendererSessionOwnedMobile
     }
   }
 
-  protected waitForTerminalHandle(tabId: string, timeoutMs = 10_000): Promise<string> {
+  waitForTerminalHandle(tabId: string, timeoutMs = 10_000): Promise<string> {
     const existing = this.resolveHandleForTab(tabId)
     if (existing) {
       return Promise.resolve(existing)

@@ -5,6 +5,7 @@ import { getChatNamingSearchEntry } from '@/components/settings/chat-naming-sear
 import { getChatInlineVisualsSearchEntry } from '@/components/settings/chat-inline-visuals-search'
 import { getChatTransientErrorRecoverySearchEntry } from '@/components/settings/chat-transient-error-recovery-search'
 import { getChatPermissionSearchEntry } from '@/components/settings/chat-permission-search'
+import { getChatProvidersSearchEntry } from '@/components/settings/chat-providers-search'
 import { getInputPaneSearchEntries } from '@/components/settings/input-search'
 import { getNotificationsPaneSearchEntries } from '@/components/settings/notifications-search'
 import { getShortcutsPaneSearchEntries } from '@/components/settings/shortcuts-search'
@@ -58,6 +59,7 @@ export function buildInterfaceSettingsSections({
               ),
               ...(showDesktopOnlySettings
                 ? [
+                    getChatProvidersSearchEntry(),
                     getChatNamingSearchEntry(),
                     getChatInlineVisualsSearchEntry(),
                     getChatTransientErrorRecoverySearchEntry()
