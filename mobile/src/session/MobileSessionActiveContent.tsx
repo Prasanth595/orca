@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Animated, View, Text, Pressable, ActivityIndicator } from 'react-native'
 import { saveTerminalTextScale } from '../storage/preferences'
 import { MobileBrowserPane } from '../browser/MobileBrowserPane'
@@ -9,6 +10,7 @@ import { styles } from './mobile-session-styles'
 import type { MobileSessionController } from './use-mobile-session-controller'
 import { FileReader } from './MobileSessionFileReader'
 import { MarkdownReader } from './MobileSessionMarkdownReader'
+import { terminalSgrMousePrograms } from './terminal-sgr-mouse-programs'
 
 export function MobileSessionActiveContent({
   controller
@@ -81,8 +83,10 @@ export function MobileSessionActiveContent({
     keyboardLift,
     activeTerminalKeyboardLift,
     toastAnimatedStyle,
-    createTabBusy
+    createTabBusy,
+    visibleTabs
   } = controller
+  const sgrMousePrograms = useMemo(() => terminalSgrMousePrograms(visibleTabs), [visibleTabs])
   const content = showLoadingState ? (
     <View style={styles.emptyState}>
       <ActivityIndicator size="small" color={colors.textSecondary} />
@@ -204,6 +208,7 @@ export function MobileSessionActiveContent({
           active={terminal.handle === activeHandle}
           keyboardLift={terminal.handle === activeHandle ? activeTerminalKeyboardLift : 0}
           terminalTheme={terminal.terminalTheme}
+          sgrMouseProgram={sgrMousePrograms.has(terminal.handle)}
           textScale={terminalTextScale}
           onTextScaleChange={(scale) => {
             // Why: pinch-to-zoom reports a new preset; persist it so the size sticks across panes and launches.

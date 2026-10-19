@@ -150,9 +150,13 @@ export function useTerminalMouseWebViewHarness() {
   let select: Select
   let terminals: TerminalStub[]
 
-  function boot(initialData = ''): void {
+  function boot(initialData = '', beforeInit: readonly Record<string, unknown>[] = []): void {
     document.body.innerHTML = bodyMarkup()
     runInThisContext(TERMINAL_DOCUMENT_SCRIPT)
+    // Why: readiness hands the document its host policies before the queued init replays.
+    for (const command of beforeInit) {
+      window.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(command) }))
+    }
     window.dispatchEvent(
       new MessageEvent('message', {
         data: JSON.stringify({ type: 'init', cols: 40, rows: 24, initialData })

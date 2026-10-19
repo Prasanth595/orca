@@ -86,6 +86,8 @@ export type TerminalSelectionEvents = {
 export type TerminalWebViewProps = {
   style?: StyleProp<ViewStyle>
   terminalTheme?: MobileTerminalTheme
+  // Why: a replay can drop the SGR encoding of a program that only ever reports with it.
+  sgrMouseProgram?: boolean
   // Why: baseline zoom multiplier applied on top of fit-to-width scale; raw
   // xterm fontSize alone cannot drive apparent size because fitting cancels it.
   textScale?: number

@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createElement } from 'react'
+import { createElement, createRef } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { terminalDocumentDouble } from './document/document-terminal-double.test-support'
 import type { TerminalDocumentTerminal } from './document/document-terminal-shape'
+import type { TerminalWebViewHandle } from './terminal-webview-contract'
 import type { TerminalWebViewCommand } from './terminal-webview-messages'
 import { TERMINAL_DOCUMENT_MARKUP } from './terminal-webview-html'
 
@@ -526,5 +527,69 @@ describe("the page pushes its terminal frame's box into the document", () => {
     await framesUntil(() => scales.length > hidden)
     expect(scales.at(-1)).toBe(1)
     mounted.dispose()
+  })
+})
+
+// xterm's serializer image of a long-running Claude Code: the tracking (?1003h) without its encoding.
+const ESC = '\u001b'
+const REPLAY_WITHOUT_ENCODING = `${ESC}[?1049h${ESC}[H> prompt${ESC}[?1003h`
+const SGR_CLICK = new RegExp(`^${ESC}\\[<0;(\\d+);(\\d+)M${ESC}\\[<0;\\1;\\2m$`)
+
+/** A one-finger tap on the surface; the page's document claims a touch by its target in the host. */
+function tapSurface(host: HTMLElement) {
+  const surface = host.querySelector('#terminal-surface')!
+  for (const type of ['touchstart', 'touchend']) {
+    const event = new Event(type, { bubbles: true, cancelable: true })
+    const touches =
+      type === 'touchend' ? [] : [{ identifier: 0, clientX: 40, clientY: 60, target: surface }]
+    Object.defineProperty(event, 'touches', { value: touches })
+    Object.defineProperty(event, 'target', { value: surface })
+    document.dispatchEvent(event)
+  }
+}
+
+describe('an SGR mouse program on the page', () => {
+  /** The view over a measured grid with the replay applied, and the terminal input it sends. */
+  async function mountedReplay(sgrMouseProgram: boolean) {
+    gridTerminal = () => gridDouble({ measurable: true })
+    const host = plantHost()
+    host.getBoundingClientRect = () => new DOMRect(0, 0, 390, 600)
+    const inputs: string[] = []
+    const ref = createRef<TerminalWebViewHandle>()
+    const view = (program: boolean) =>
+      createElement(TerminalWebView, {
+        ref,
+        sgrMouseProgram: program,
+        onTerminalInput: (bytes: string) => inputs.push(bytes)
+      })
+    act(() => {
+      renderer = create(view(sgrMouseProgram), { createNodeMock: () => host })
+    })
+    act(() => {
+      ref.current?.init({ cols: 80, rows: 24, initialData: REPLAY_WITHOUT_ENCODING, frame: null })
+    })
+    await settle()
+    const learnProgram = () => act(() => renderer?.update(view(true)))
+    return { host, inputs, learnProgram }
+  }
+
+  it('reaches the document the view mounts, through the readiness it reports while mounting', async () => {
+    const { host, inputs } = await mountedReplay(true)
+
+    tapSurface(host)
+
+    expect(inputs.join('')).toMatch(SGR_CLICK)
+  })
+
+  it('reaches the live document when the pane learns its program after the replay', async () => {
+    const { host, inputs, learnProgram } = await mountedReplay(false)
+    tapSurface(host)
+    // The control: the replay alone proves no encoding, so the tap reaches no program.
+    expect(inputs).toEqual([])
+
+    learnProgram()
+    tapSurface(host)
+
+    expect(inputs.join('')).toMatch(SGR_CLICK)
   })
 })

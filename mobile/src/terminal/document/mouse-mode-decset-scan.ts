@@ -37,6 +37,9 @@ export function updateMouseModeFromData(scope: TerminalDocumentScope, data: unkn
   while ((match = re.exec(input)) !== null) {
     if (match[0] === ESC + 'c') {
       scope.mouseEncodingKnown = true
+      if (live) {
+        scope.mouseEncodingLive = true
+      }
       scope.trackedMouseTrackingMode = 'none'
       scope.sgrMouseMode = false
       scope.sgrMousePixelsMode = false
@@ -56,6 +59,7 @@ export function updateMouseModeFromData(scope: TerminalDocumentScope, data: unkn
       // means the default; only a replay can carry tracking without its encoding.
       if (live && enabled && (param === 9 || param === 1000 || param === 1002 || param === 1003)) {
         scope.mouseEncodingKnown = true
+        scope.mouseEncodingLive = true
       }
       if (param === 9) {
         scope.trackedMouseTrackingMode = enabled ? 'x10' : 'none'
@@ -71,11 +75,17 @@ export function updateMouseModeFromData(scope: TerminalDocumentScope, data: unkn
       }
       if (param === 1006) {
         scope.mouseEncodingKnown = true
+        if (live) {
+          scope.mouseEncodingLive = true
+        }
         scope.sgrMouseMode = enabled
         scope.sgrMousePixelsMode = false
       }
       if (param === 1016) {
         scope.mouseEncodingKnown = true
+        if (live) {
+          scope.mouseEncodingLive = true
+        }
         scope.sgrMouseMode = false
         scope.sgrMousePixelsMode = enabled
       }

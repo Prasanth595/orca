@@ -13,6 +13,7 @@ type TerminalPaneViewProps = {
   active: boolean
   keyboardLift: number
   terminalTheme?: MobileTerminalTheme
+  sgrMouseProgram?: boolean
   textScale: number
   onRef: (handle: string, ref: TerminalWebViewHandle | null) => void
   onWebReady: (handle: string) => void
@@ -36,6 +37,7 @@ export function TerminalPaneView({
   active,
   keyboardLift,
   terminalTheme,
+  sgrMouseProgram,
   textScale,
   onRef,
   onWebReady,
@@ -75,6 +77,7 @@ export function TerminalPaneView({
         ref={setRef}
         style={styles.terminalWebView}
         terminalTheme={terminalTheme}
+        sgrMouseProgram={sgrMouseProgram}
         textScale={textScale}
         shownAtMount={active}
         onWebReady={() => onWebReady(handle)}

@@ -2,7 +2,11 @@ import { handleDragMove, repositionOverlay, stopEdgeScroll } from './selection-o
 import { cancelSelect } from './selection-mode'
 import { applyXtermSelection } from './selection-range'
 import { notify } from './host-notify'
-import { getMouseTrackingMode, isSafeSgrMouseCoordinate } from './mouse-input-encoding'
+import {
+  getMouseTrackingMode,
+  isSafeSgrMouseCoordinate,
+  mouseReportEncoding
+} from './mouse-input-encoding'
 import { viewportToCell } from './viewport-cell'
 import type { TerminalDocumentScope } from './document-scope'
 import { ESC } from './escape-introducers'
@@ -33,7 +37,8 @@ export function buildMouseButtonReport(
   clientY: number
 ) {
   const mouseTrackingMode = getMouseTrackingMode(scope)
-  if (mouseTrackingMode === 'none' || !scope.mouseEncodingKnown) {
+  const encoding = mouseReportEncoding(scope)
+  if (mouseTrackingMode === 'none' || !encoding) {
     return ''
   }
   if (kind === 'motion' && mouseTrackingMode !== 'drag' && mouseTrackingMode !== 'any') {
@@ -48,13 +53,13 @@ export function buildMouseButtonReport(
   }
   const sgrButton = kind === 'motion' ? 32 : 0
   const sgrFinal = kind === 'release' ? 'm' : 'M'
-  if (scope.sgrMousePixelsMode) {
+  if (encoding === 'sgr-pixels') {
     if (!isSafeSgrMouseCoordinate(cell.x) || !isSafeSgrMouseCoordinate(cell.y)) {
       return ''
     }
     return ESC + '[<' + sgrButton + ';' + cell.x + ';' + cell.y + sgrFinal
   }
-  if (scope.sgrMouseMode) {
+  if (encoding === 'sgr') {
     // Why: xterm increments zero-based mouse cells before encoding reports.
     const sgrCol = cell.col + 1
     const sgrRow = cell.row + 1
@@ -105,7 +110,7 @@ export function abandonMouseGesture(scope: TerminalDocumentScope) {
 export function beginMouseDrag(scope: TerminalDocumentScope, gesture: TerminalMouseGesture) {
   gesture.moved = true
   // Why: with no proven encoding the program would get no reports, so select locally instead.
-  if (getMouseTrackingMode(scope) !== 'none' && scope.mouseEncodingKnown) {
+  if (getMouseTrackingMode(scope) !== 'none' && mouseReportEncoding(scope)) {
     gesture.mode = 'tracking'
     gesture.lastCellKey = mouseReportCellKey(scope, gesture.startX, gesture.startY)
     const press = buildMouseButtonReport(scope, 'press', gesture.startX, gesture.startY)

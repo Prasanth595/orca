@@ -80,6 +80,10 @@ export type TerminalDocumentState = {
   everReady: boolean
   /** `mouse-mode-decset-scan`: whether the encoding is proven (1006/1016 set or reset, RIS, or a live tracking enable). */
   mouseEncodingKnown: boolean
+  /** `mouse-mode-decset-scan`: whether the program's own live bytes, not a replay, stated the encoding. */
+  mouseEncodingLive: boolean
+  /** `mouse-input-encoding`: whether the pane's program only ever tracks the mouse with SGR reports. */
+  sgrMouseProgram: boolean
   /** `mouse-mode-decset-scan`: the tail of the last chunk, in case a DECSET straddles two writes. */
   mouseModeScanTail: string
   /** `mouse-mode-decset-scan`: the mouse tracking mode the TUI last asked for. */
@@ -265,6 +269,8 @@ function createTerminalDocumentState(): TerminalDocumentState {
     },
     everReady: false,
     mouseEncodingKnown: false,
+    mouseEncodingLive: false,
+    sgrMouseProgram: false,
     mouseModeScanTail: '',
     trackedMouseTrackingMode: 'none',
     sgrMouseMode: false,
