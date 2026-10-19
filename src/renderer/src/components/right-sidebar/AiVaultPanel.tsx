@@ -90,11 +90,13 @@ export default function AiVaultPanel({
     group,
     hideEmptySessions,
     sessionLimit,
+    groupSessionLimit,
     setSort,
     setSearchSort,
     setGroup,
     setHideEmptySessions,
     setSessionLimit,
+    setGroupSessionLimit,
     setAgentEnabled,
     setAllAgentsEnabled,
     resetViewOptions
@@ -203,7 +205,8 @@ export default function AiVaultPanel({
     agents,
     group,
     hideEmptySessions,
-    sessionLimit
+    sessionLimit,
+    groupSessionLimit
   })
 
   const { filteredSessions, groups } = useAiVaultPanelSessions(sessions, searching, group, {
@@ -270,6 +273,7 @@ export default function AiVaultPanel({
         group={group}
         hideEmptySessions={hideEmptySessions}
         sessionLimit={sessionLimit}
+        groupSessionLimit={groupSessionLimit}
         adjustmentCount={viewAdjustmentCount}
         focusSearchRequestId={focusSearchRequestId}
         headerAction={headerAction}
@@ -284,6 +288,7 @@ export default function AiVaultPanel({
         onGroupChange={setGroup}
         onHideEmptySessionsChange={setHideEmptySessions}
         onSessionLimitChange={setSessionLimit}
+        onGroupSessionLimitChange={setGroupSessionLimit}
         onReset={resetViewOptions}
         onRefresh={() => (searching ? search.retry() : void refresh({ force: true }))}
       />
@@ -321,6 +326,7 @@ export default function AiVaultPanel({
             searchHits={searching ? searchHits : undefined}
             groups={groups}
             collapsedGroups={collapsedGroups}
+            groupSessionLimit={groupSessionLimit}
             loading={searching ? search.loading : loading}
             scopePending={!searching && scopePending}
             scanProgressShown={stripProgress !== null}
