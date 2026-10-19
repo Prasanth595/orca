@@ -228,7 +228,11 @@ export class TerminalHost {
 
   inspectProcess(
     sessionId: string,
-    options?: { expectedIncarnationId?: string; steadyState?: boolean }
+    options?: {
+      expectedIncarnationId?: string
+      steadyState?: boolean
+      scanChildProcesses?: boolean
+    }
   ): ReturnType<typeof inspectTerminalHostProcess> {
     pruneRetiredPtyIncarnations(this.retiredIncarnations)
     const session = this.sessions.get(sessionId)
@@ -246,10 +250,7 @@ export class TerminalHost {
       sessionId,
       currentSession: () => this.sessions.get(sessionId),
       session: session?.isAlive ? session : null,
-      ...(options?.expectedIncarnationId
-        ? { expectedIncarnationId: options.expectedIncarnationId }
-        : {}),
-      ...(options?.steadyState === true ? { steadyState: true } : {}),
+      ...options,
       retiredIncarnation: this.retiredIncarnations.get(sessionId),
       authorityGeneration: this.authorityGeneration,
       nextObservationEpoch: () => ++this.observationEpoch

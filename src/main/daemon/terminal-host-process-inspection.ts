@@ -39,6 +39,8 @@ export async function inspectTerminalHostProcess(args: {
   expectedIncarnationId?: string
   /** The caller is a self-correcting poll that only reads the process name, never evidence. */
   steadyState?: boolean
+  /** The answer decides something once (see `PtyProcessInspectionOptions`). */
+  scanChildProcesses?: boolean
   retiredIncarnation?: RetiredIncarnation
   authorityGeneration: string
   nextObservationEpoch: () => number
@@ -93,7 +95,10 @@ export async function inspectTerminalHostProcess(args: {
       foregroundProcess = await session.confirmForegroundProcess()
     }
     // A steady-state poll never decides adoption or close, so it may read the cached process table.
-    childProcessEvidence = await session.inspectChildProcesses(args.steadyState !== true)
+    childProcessEvidence = await session.inspectChildProcesses(
+      args.steadyState !== true,
+      args.scanChildProcesses === true
+    )
     // Unverifiable whatever `ps` says, and an MSYS `ps.exe` on PATH would flash a console.
     evidence = unverifiableEvidence(args, session, 'windows_ssh_foreground_unavailable')
   } else {

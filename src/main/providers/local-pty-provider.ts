@@ -166,7 +166,8 @@ export class LocalPtyProvider implements IPtyProvider {
     // A steady-state poll never decides adoption or close, so it may read the cached process table.
     const childProcessEvidence = await inspectLocalPtyChildProcesses(
       id,
-      options?.steadyState !== true
+      options?.steadyState !== true,
+      options?.scanChildProcesses === true
     )
     // Neither asynchronous inspection may publish a replacement pane's identity.
     if (ptyProcesses.get(id) !== proc || ptyIncarnations.get(id) !== incarnation) {
