@@ -13,7 +13,7 @@ import { resetSessionParseCacheForTests } from './session-parse-cache-store'
 import { scanAiVaultSessions } from './session-scanner'
 import { isolatedScanRoots, jsonLines } from './session-scanner-test-fixtures'
 
-const reads = vi.hoisted(() => [] as string[])
+const reads = vi.hoisted((): string[] => [])
 vi.mock('../native-chat/wsl-transcript-fs-access', async (importOriginal) => {
   const actual = await importOriginal<typeof WslTranscriptFsAccess>()
   return {
