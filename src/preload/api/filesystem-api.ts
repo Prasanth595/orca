@@ -201,6 +201,7 @@ export type FilesystemApi = {
     ) => Promise<{ results: ImportItemResult[] }>
     stageExternalPathsForRuntimeUpload: (args: {
       sourcePaths: string[]
+      nameExtensionlessImages?: boolean
     }) => Promise<{ sources: StagedExternalImportSource[] }>
     uploadExternalFileToRuntime: (
       args: RuntimeUploadFileStreamRequest

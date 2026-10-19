@@ -1,25 +1,37 @@
 import { useCallback, useImperativeHandle, type ForwardedRef } from 'react'
-import type { ClipboardEventLike } from './native-chat-clipboard-payload'
 import type { NativeChatComposerHandle } from './native-chat-composer-types'
 import {
   useNativeChatComposerPaste,
   type UseNativeChatComposerPasteArgs
 } from './use-native-chat-composer-paste'
 import { useNativeChatTypedInsertion } from './use-native-chat-typed-insertion'
+import { useNativeChatAddressPreviews } from './use-native-chat-address-previews'
 
 type UseNativeChatComposerHandleArgs = Parameters<typeof useNativeChatTypedInsertion>[0] &
   Omit<UseNativeChatComposerPasteArgs, 'insertTypedText'> & {
-    /** Observes text only after a user paste successfully entered this composer. */
-    onTextPasted?: (text: string) => void
+    addressPreviewsEnabled: boolean
   }
 
-/** Typed and pasted insertion for the composer, exposed on the handle the chat
- *  root uses to route keystrokes and pastes into it. Returns the paste handler. */
+/** Typed and pasted insertion and its address previews share the composer lifetime. */
 export function useNativeChatComposerHandle(
   ref: ForwardedRef<NativeChatComposerHandle>,
   args: UseNativeChatComposerHandleArgs
-): (event: ClipboardEventLike) => void {
-  const { textareaRef, draft, setDraft, setActiveSuggestion, onTextPasted, ...pasteArgs } = args
+) {
+  const {
+    textareaRef,
+    draft,
+    setDraft,
+    setActiveSuggestion,
+    addressPreviewsEnabled,
+    ...pasteArgs
+  } = args
+  const addressPreviews = useNativeChatAddressPreviews({
+    scopeKey: JSON.stringify([args.attachmentScopeKey, args.targetKey]),
+    draft,
+    inputRef: textareaRef,
+    enabled: addressPreviewsEnabled
+  })
+  const { onTextPasted } = addressPreviews
   const { insertTypedText, appendText, acceptsText, insertPastedText, focus, contains } =
     useNativeChatTypedInsertion({
       textareaRef,
@@ -35,7 +47,7 @@ export function useNativeChatComposerHandle(
       if (!insertPastedText(text)) {
         return false
       }
-      onTextPasted?.(text)
+      onTextPasted(text)
       return true
     },
     [insertPastedText, onTextPasted]
@@ -66,5 +78,5 @@ export function useNativeChatComposerHandle(
       contains
     ]
   )
-  return handlePasteEvent
+  return { handlePasteEvent, addressPreviews }
 }

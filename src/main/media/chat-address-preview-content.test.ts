@@ -39,9 +39,7 @@ describe('chat address preview content inspection', () => {
         kind: 'image',
         mimeType: 'image/bmp'
       })
-      expect(inspectPreviewContent(bytes.subarray(0, bytes.length - 1), 'download').kind).toBe(
-        'file'
-      )
+      expect(inspectPreviewContent(bytes.subarray(0, -1), 'download').kind).toBe('file')
     }
   )
 
