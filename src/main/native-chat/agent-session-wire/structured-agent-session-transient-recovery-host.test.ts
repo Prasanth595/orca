@@ -72,7 +72,7 @@ it('continues a native capacity failure through the real host sender without any
   expect(dispatch.mock.calls[0]![0].sessionId).toBe(SESSION)
 })
 
-it.each(['disabled', 'manual-send', 'stop', 'close', 'quota', 'dispatch-owned'])(
+it.each(['disabled', 'manual-send', 'stop', 'close', 'quota', 'dispatch-owned', 'option', 'goal'])(
   'does not auto-send after %s',
   async (action) => {
     await attach()
@@ -92,6 +92,20 @@ it.each(['disabled', 'manual-send', 'stop', 'close', 'quota', 'dispatch-owned'])
     }
     if (action === 'close') {
       await host.close(SESSION, 'user-close')
+    }
+    if (action === 'option') {
+      const fields = { key: 'model', value: 'another-model' }
+      await host.setOption(CALLER, {
+        envelope: envelope('agentSession.setOption', fields),
+        ...fields
+      })
+    }
+    if (action === 'goal') {
+      const change = { kind: 'clear' as const }
+      await host.changeThreadGoal(CALLER, {
+        envelope: envelope('agentSession.threadGoal', { change }),
+        change
+      })
     }
     await vi.advanceTimersByTimeAsync(10_000)
     expect(dispatch).toHaveBeenCalledTimes(action === 'manual-send' ? 1 : 0)

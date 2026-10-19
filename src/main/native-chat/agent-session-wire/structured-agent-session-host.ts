@@ -305,8 +305,14 @@ export class StructuredAgentSessionHost {
       this.mutations.cancel(caller, params)
     )
   respondToPrompt = this.mutations.respondToPrompt
-  setOption = this.mutations.setOption
-  changeThreadGoal = this.mutations.changeThreadGoal
+  setOption: typeof this.mutations.setOption = (caller, params) =>
+    this.transientRecovery.beforeUserAction(params.envelope.sessionId, () =>
+      this.mutations.setOption(caller, params)
+    )
+  changeThreadGoal: typeof this.mutations.changeThreadGoal = (caller, params) =>
+    this.transientRecovery.beforeUserAction(params.envelope.sessionId, () =>
+      this.mutations.changeThreadGoal(caller, params)
+    )
   readOptions = this.mutations.readOptions
 
   rewind = (caller: StructuredAgentSessionCaller, params: AgentSessionRewindParams) =>

@@ -27,7 +27,7 @@ In **Settings → Chat**, enable **Automatically continue after temporary provid
 
 Orca sends a continuation using the same model and account after 10 seconds. Consecutive temporary failures get two more attempts after 30 and 60 seconds. A successful turn resets the limit. Recovery runs on the session host, so the chat view does not need to stay open.
 
-Sending a message, stopping, closing, clearing or rewinding the chat, changing session options, or turning the setting off cancels pending attempts. Authentication, billing, quota, and other permanent errors do not trigger automatic continuation. Existing provider retries finish before Orca considers continuing a failed turn. Chats owned by an active orchestration dispatch keep their existing recovery policy.
+Sending a message, stopping, closing, clearing or rewinding the chat, changing session options or the thread goal, or turning the setting off cancels pending attempts. Authentication, billing, quota, and other permanent errors do not trigger automatic continuation. Existing provider retries finish before Orca considers continuing a failed turn. Chats owned by an active orchestration dispatch keep their existing recovery policy.
 
 ## Questions from the agent
 
