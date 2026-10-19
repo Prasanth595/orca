@@ -12,13 +12,11 @@ import {
 
 const ZCODE_TRANSCRIPT_IMPORT = directoryTranscriptImport({
   // One store per account home: the launch already pinned where the chat runs.
+  conversationStore: ({ accountHomePath }) => join(accountHomePath, 'cli', 'db', 'db.sqlite'),
   accountHomeCandidates: ({ selectedAccountHomePath }) => [selectedAccountHomePath],
   // ZCode's conversation lives in its own SQLite store, which the adapter reads back through
   // `session/resume`, so the database's presence is the adoption proof.
-  findTranscript: async ({ accountHomePath }) => {
-    const database = join(accountHomePath, 'cli', 'db', 'db.sqlite')
-    return existsSync(database) ? database : null
-  }
+  findTranscript: async ({ store }) => (existsSync(store) ? store : null)
 })
 
 const ZCODE_SESSION_HISTORY: StructuredAgentSessionHistory = {

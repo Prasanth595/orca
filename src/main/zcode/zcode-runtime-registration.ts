@@ -1,5 +1,4 @@
-// The ZCode row in the structured-session registry: its adapter, location support,
-// and the account home its chats pin.
+// The ZCode row in the structured-session catalog: its metadata and adapter factory.
 
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -12,14 +11,32 @@ import {
 import type {
   StructuredAgentAdapterContext,
   StructuredAgentRuntimeAdapter,
-  StructuredAgentRuntimeRegistration
-} from '../runtime/structured-agent-runtime-registrations'
+  StructuredAgentRuntimeMetadata
+} from '../runtime/structured-agent-runtime-registration-types'
 import { ZcodeStructuredSessionAdapter } from './zcode-structured-session-adapter'
 import { ZCODE_STRUCTURED_AGENT } from './zcode-structured-agent-definition'
 import { zcodeStructuredLaunchPart } from './zcode-structured-launch-resolution'
 import { ZCODE_CLI_CONVERSATIONS } from './zcode-cli-conversations'
 
-function createZcodeAdapter(context: StructuredAgentAdapterContext): StructuredAgentRuntimeAdapter {
+export const ZCODE_RUNTIME_METADATA: StructuredAgentRuntimeMetadata = {
+  definition: ZCODE_STRUCTURED_AGENT,
+  // The app-server lists models only inside a conversation; no session-free listing exists.
+  modelCatalog: () => ({
+    kind: 'unavailable',
+    reason: 'zcode app-server lists no models without a session'
+  }),
+  ...ZCODE_CLI_CONVERSATIONS,
+  supportsLocation: (location) => supportsSupervisedProviderChildLocation(location),
+  resolveAccountHome: async ({ launchEnv }) =>
+    agentSessionAccountHome(
+      ZCODE_STRUCTURED_AGENT,
+      launchEnv.ZCODE_HOME?.trim() || join(homedir(), '.zcode')
+    )
+}
+
+export function createZcodeAdapter(
+  context: StructuredAgentAdapterContext
+): StructuredAgentRuntimeAdapter {
   const { deps } = context
   return new ZcodeStructuredSessionAdapter({
     resolveLaunch: composeStructuredLaunch(
@@ -33,21 +50,4 @@ function createZcodeAdapter(context: StructuredAgentAdapterContext): StructuredA
     // Zcode's ended events always carry a cause, so lifecycle forwards whole.
     onEvent: context.deliverLifecycle
   })
-}
-
-export const ZCODE_RUNTIME_REGISTRATION: StructuredAgentRuntimeRegistration = {
-  definition: ZCODE_STRUCTURED_AGENT,
-  createAdapter: createZcodeAdapter,
-  // The app-server lists models only inside a conversation; no session-free listing exists.
-  modelCatalog: () => ({
-    kind: 'unavailable',
-    reason: 'zcode app-server lists no models without a session'
-  }),
-  ...ZCODE_CLI_CONVERSATIONS,
-  supportsLocation: (location) => supportsSupervisedProviderChildLocation(location),
-  resolveAccountHome: async ({ launchEnv }) =>
-    agentSessionAccountHome(
-      ZCODE_STRUCTURED_AGENT,
-      launchEnv.ZCODE_HOME?.trim() || join(homedir(), '.zcode')
-    )
 }

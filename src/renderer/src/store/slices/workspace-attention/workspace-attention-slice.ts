@@ -15,6 +15,9 @@ import {
 } from './workspace-unread-flag'
 import { workspaceMarkerTabIds } from './workspace-live-markers'
 import { isTabOnScreen } from '@/hooks/agent-auto-ack-targets'
+import { isWorkspaceNotificationMutedBySidebarFilters } from '@/attention/hidden-workspace-notification-mute'
+import { ORCA_SIDEBAR_INPUTS_IS_MAIN } from '../../../../../shared/sidebar-inputs-switch'
+import { noteWindowUnreadDecision } from '@/lib/sidebar-shadow/window-unread-decisions'
 
 export const createWorkspaceAttentionSlice: StateCreator<
   AppState,
@@ -83,6 +86,10 @@ export const createWorkspaceAttentionSlice: StateCreator<
       if (isTabOnScreen(get(), worktreeId, tabId, 'terminal')) {
         return
       }
+      // Why here too: the bell's marker is written before its delayed banner reaches the attention policy.
+      if (isWorkspaceNotificationMutedBySidebarFilters(get(), worktreeId)) {
+        return
+      }
       markWorkspaceUnreadFlag(set, get, worktreeId)
       markTabUnread(tabId, 'terminal-bell')
       if (paneAttentionEnabled()) {
@@ -113,6 +120,9 @@ export const createWorkspaceAttentionSlice: StateCreator<
       }
     },
     setWorkspaceUnreadByUser: (worktreeId, isUnread, executionHostId) => {
+      if (ORCA_SIDEBAR_INPUTS_IS_MAIN) {
+        noteWindowUnreadDecision(worktreeId, isUnread)
+      }
       if (!isUnread) {
         removeAndDismiss(workspaceMarkerTabIds(get(), worktreeId))
       }

@@ -1,10 +1,10 @@
-import { OrcaRuntimeWithDeliverPendingMessages } from './orca-runtime-deliver-pending-messages'
+import { OrcaRuntimeWithDeliverPendingMessages } from './orchestration/mail/terminal-message-delivery'
 import type { TerminalWaiter } from './runtime-terminal-contracts'
 import type { RuntimeTerminalWait } from '../../shared/runtime-terminal-contracts'
 import type { BrowserWindow } from 'electron'
 import { getRuntimeDesktopSurface } from './runtime-desktop-surface'
 
-export class OrcaRuntimeWithResolveWaiter extends OrcaRuntimeWithDeliverPendingMessages {
+export abstract class OrcaRuntimeWithResolveWaiter extends OrcaRuntimeWithDeliverPendingMessages {
   protected resolveWaiter(waiter: TerminalWaiter, result: RuntimeTerminalWait): void {
     this.terminalWaiters.resolve(waiter, result)
   }

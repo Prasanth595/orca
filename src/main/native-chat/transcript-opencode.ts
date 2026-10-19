@@ -54,40 +54,6 @@ export const openCodeTranscriptDefaultDeps: Required<OpenCodeTranscriptDeps> = {
   readPage: (args, signal) => readOpenCodeTranscriptPageViaWorker(args, signal)
 }
 
-/**
- * Resolve a subscribe's read legs against its own abort signal, with the agent
- * tag (when any) already applied to every leg. Kept here so the poll loop stays
- * free of default-vs-override plumbing.
- */
-export function bindOpenCodeTranscriptDeps(
-  deps: OpenCodeTranscriptDeps,
-  signal: AbortSignal,
-  agent?: 'zcode'
-): {
-  resolveDbPath: () => Promise<string | null>
-  readSignal: (dbPath: string, sessionId: string) => Promise<OpenCodeTranscriptSignal | null>
-  readPage: (
-    page: Parameters<NonNullable<OpenCodeTranscriptDeps['readPage']>>[0]
-  ) => Promise<OpenCodeTranscriptPage | null>
-} {
-  return {
-    resolveDbPath: () =>
-      (deps.resolveDbPath ?? openCodeTranscriptDefaultDeps.resolveDbPath)(undefined, signal, agent),
-    readSignal: (dbPath, sessionId) =>
-      (deps.readSignal ?? openCodeTranscriptDefaultDeps.readSignal)(
-        dbPath,
-        sessionId,
-        signal,
-        agent
-      ),
-    readPage: (page) =>
-      (deps.readPage ?? openCodeTranscriptDefaultDeps.readPage)(
-        { ...page, ...(agent ? { agent } : {}) },
-        signal
-      )
-  }
-}
-
 export type OpenCodeTailResult =
   | { messages: NativeChatMessage[]; hasMore: boolean; beforeOffset: number }
   | { error: string; notFound?: true }
@@ -141,6 +107,7 @@ export async function readOpenCodeNativeChatTranscriptFull(
   let records = 0
   let bytes = 0
   let cursor: number | undefined
+  let sourceEmpty = false
   try {
     const dbPath = await (deps.resolveDbPath ?? openCodeTranscriptDefaultDeps.resolveDbPath)(
       sessionId,
@@ -168,6 +135,9 @@ export async function readOpenCodeNativeChatTranscriptFull(
         }
         break
       }
+      if (pages.length === 0) {
+        sourceEmpty = page.beforeMessageRowId === null && !page.hasMore
+      }
       pages.push(page.items.map((item) => item.message))
       records += page.items.length
       bytes += Buffer.byteLength(JSON.stringify(page.items))
@@ -182,5 +152,5 @@ export async function readOpenCodeNativeChatTranscriptFull(
   } catch (err) {
     return { error: errorMessage(err) }
   }
-  return { messages: pages.toReversed().flat() }
+  return { messages: pages.toReversed().flat(), sourceEmpty }
 }

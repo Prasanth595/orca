@@ -40,13 +40,13 @@ describe('ZcodeStructuredSessionAdapter.acquire', () => {
       processStartTimeMs: 1_700_000_000_000,
       spawnToken: 'spawn-9'
     })
-    expect(acquisition.link.handle).toEqual({
+    expect(acquisition.link?.handle).toEqual({
       transport: 'zcode-app-server',
       agent: 'zcode',
       nativeId: PROVIDER_SESSION
     })
-    expect(acquisition.link.origin).toBe('created')
-    expect(acquisition.link.mintedAtFence).toBe(7)
+    expect(acquisition.link?.origin).toBe('created')
+    expect(acquisition.link?.mintedAtFence).toBe(7)
   })
 
   it('reports the same process identity to onSpawned as the acquisition carries', async () => {
@@ -189,8 +189,8 @@ describe('ZcodeStructuredSessionAdapter.acquire', () => {
         params: { sessionId: PROVIDER_SESSION, deliveryKind: 'desktop-continuous' }
       }
     ])
-    expect(acquisition.link.handle.nativeId).toBe(PROVIDER_SESSION)
-    expect(acquisition.link.origin).toBe('resumed')
+    expect(acquisition.link?.handle.nativeId).toBe(PROVIDER_SESSION)
+    expect(acquisition.link?.origin).toBe('resumed')
   })
 
   it('refuses a resume that minted a different conversation', async () => {

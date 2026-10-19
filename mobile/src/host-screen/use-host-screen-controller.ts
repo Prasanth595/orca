@@ -8,7 +8,11 @@ import { resolveHostRouteActionState } from '../host-route-action-state'
 import { useActiveWorktreeScroll } from '../hooks/use-active-worktree-scroll'
 import { useNow } from '../hooks/use-now'
 import { useResponsiveLayout } from '../layout/responsive-layout'
-import { useForgetHostClient, useForceReconnect, useHostClient } from '../transport/client-context'
+import {
+  useForgetHostClient,
+  useForceReconnect,
+  useHostClient
+} from '../transport/host-client-hooks'
 import {
   useLastConnectedAt,
   useReconnectAttempt,
@@ -22,6 +26,8 @@ import { useHostRepoMetadata, type FetchHostRepoMetadata } from './use-host-repo
 import { useHostScreenIdentity } from './use-host-screen-identity'
 import { useHostScreenState } from './use-host-screen-state'
 import { useHostViewSettings } from './use-host-view-settings'
+import { rowFiltersForView } from '../worktree/workspace-view-settings'
+import { countActiveWorkspaceFilters } from '../../../src/shared/workspace-view/workspace-row-filters'
 import { useHostWorktreeActions } from './use-host-worktree-actions'
 import { useHostWorktreeCatalog } from './use-host-worktree-catalog'
 import { useHostDisplay } from '../transport/use-host-display'
@@ -66,7 +72,7 @@ export function useHostScreenController({
   const now = useNow(30_000)
   const { hostCapabilities, floatingWorkspaceEnabled } = useHostProtocolGates()
   const state = useHostScreenState(hostId, action)
-  const settings = useHostViewSettings({ client, connState, hostId, state })
+  const settings = useHostViewSettings({ client, connState, state })
   const hostDisplay = useHostDisplay(
     hostId && state.hostName
       ? { id: hostId, name: state.hostName, ...state.hostStoredDescriptor }
@@ -119,30 +125,55 @@ export function useHostScreenController({
       buildProjectSectionCatalog(
         state.servedProjectSections,
         state.desktopRepos,
-        state.visibleHostIds
+        state.view.filters.visibleHostIds,
+        state.view.projectOrderBy
       ),
-    [state.servedProjectSections, state.desktopRepos, state.visibleHostIds]
+    [
+      state.servedProjectSections,
+      state.desktopRepos,
+      state.view.filters.visibleHostIds,
+      state.view.projectOrderBy
+    ]
   )
+  const collapsedGroups = useMemo(
+    () => new Set(state.view.collapsedGroups),
+    [state.view.collapsedGroups]
+  )
+  const rowFilters = useMemo(() => rowFiltersForView(state.view), [state.view])
   const sectionsResult = useWorkspaceSections({
     displayWorktrees,
-    sortMode: state.sortMode,
-    filters: state.filters,
+    sortMode: state.view.sortBy,
+    filters: rowFilters,
     search: state.search,
-    groupMode: state.groupMode,
+    groupMode: state.view.groupBy,
     pinnedIds: state.pinnedIds,
     showPinnedInGroups: state.showPinnedInGroups,
     projectCatalog,
     filterCatalogRepos: state.servedProjectSections?.repos ?? state.desktopRepos,
-    collapsedGroups: state.collapsedGroups,
-    workspaceStatuses: state.workspaceStatuses
+    collapsedGroups,
+    workspaceStatuses: state.view.workspaceStatuses,
+    repoHostIdByRepoId: state.repoHostIdByRepoId
   })
+  const { uniqueRepos } = sectionsResult
+  const activeFilterCount = useMemo(
+    () =>
+      countActiveWorkspaceFilters(
+        state.view.filters,
+        uniqueRepos.map((repo) => repo.id)
+      ),
+    [state.view.filters, uniqueRepos]
+  )
   const existingWorktreePaths = useMemo(() => state.worktrees.map((w) => w.path), [state.worktrees])
   const activeWorktreeScroll = useActiveWorktreeScroll(sectionsResult.sections)
 
   return {
     actions,
+    activeFilterCount,
     activeWorktreeScroll,
     catalog,
+    collapsedGroups,
+    // Resolved: the desktop's value once read; the served catalog's (or the default) before.
+    projectOrderBy: projectCatalog.projectOrderBy,
     client,
     connState,
     contentMaxWidth,

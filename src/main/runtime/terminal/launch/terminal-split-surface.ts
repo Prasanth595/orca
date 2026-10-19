@@ -1,5 +1,4 @@
 import { OrcaRuntimeWithSplitTerminal } from './terminal-split'
-import type { OrcaRuntimeWithResolveTerminalSplitSourceAuthority } from '../../orca-runtime-resolve-terminal-split-source-authority'
 import type { RuntimePtyWorktreeRecord } from '../../runtime-terminal-state-records'
 import type { TerminalPaneSplitSource } from '../../../../shared/feature-education-telemetry'
 import type { RuntimeTerminalSplit } from '../../../../shared/runtime-types'
@@ -24,14 +23,6 @@ export type TerminalSplitOptions = {
 }
 
 export abstract class OrcaRuntimeWithSplitPtyBackedTerminal extends OrcaRuntimeWithSplitTerminal {
-  protected abstract resolveTerminalSplitSourceAuthority(
-    ...args: Parameters<
-      OrcaRuntimeWithResolveTerminalSplitSourceAuthority['resolveTerminalSplitSourceAuthority']
-    >
-  ): ReturnType<
-    OrcaRuntimeWithResolveTerminalSplitSourceAuthority['resolveTerminalSplitSourceAuthority']
-  >
-
   protected async splitPtyBackedTerminal(
     pty: RuntimePtyWorktreeRecord,
     opts: TerminalSplitOptions = {},
@@ -73,15 +64,13 @@ export abstract class OrcaRuntimeWithSplitPtyBackedTerminal extends OrcaRuntimeW
       cwd: workspace.path,
       command: opts.command,
       commandDelivery: 'provider',
-      env: await this.buildTerminalWorkspaceEnv(
+      env: this.buildTerminalWorkspaceEnv(
         workspace,
         // A split is a plain shell: it takes the host's account pointer, as every create does.
         {
           ...(workspace.connectionId ? {} : this.accounts.hostLaunchEnvFor(null)),
           ...opts.env
-        },
-        paneKey,
-        parentTabId
+        }
       ),
       envToDelete: opts.envToDelete,
       connectionId: workspace.connectionId,
