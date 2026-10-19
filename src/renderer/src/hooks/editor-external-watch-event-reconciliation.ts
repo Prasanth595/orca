@@ -30,6 +30,12 @@ import {
   type EditorExternalWatchNotification
 } from './editor-external-watch-disk-verification'
 
+function isTargetList(
+  found: EditorExternalWatchTarget | readonly EditorExternalWatchTarget[] | undefined
+): found is readonly EditorExternalWatchTarget[] {
+  return Array.isArray(found)
+}
+
 // Why: macOS atomic writes split delete→create across payloads; debounce deletion so a same-path create cancels the tombstone before it paints.
 const EXTERNAL_MUTATION_DEBOUNCE_MS = 75
 
@@ -39,12 +45,18 @@ type PendingDeleteTimer = {
 }
 
 export function buildEditorExternalWatchEventHandler(
-  findTarget: (
+  // Why: several workspaces can share one root (two folder workspaces on a directory); each reconciles its own tabs.
+  findTargets: (
     worktreePath: string,
-    runtimeEnvironmentId: string | null
-  ) => EditorExternalWatchTarget | undefined
+    runtimeEnvironmentId: string | null,
+    connectionId: string | undefined
+  ) => EditorExternalWatchTarget | readonly EditorExternalWatchTarget[] | undefined
 ): {
-  handleFsChanged: (payload: FsChangedPayload, runtimeEnvironmentId?: string | null) => void
+  handleFsChanged: (
+    payload: FsChangedPayload,
+    runtimeEnvironmentId?: string | null,
+    onlyTarget?: EditorExternalWatchTarget
+  ) => void
   dispose: () => void
 } {
   const pendingDeletes = new Map<string, PendingDeleteTimer>()
@@ -56,21 +68,30 @@ export function buildEditorExternalWatchEventHandler(
 
   const handleFsChanged = (
     payload: FsChangedPayload,
-    runtimeEnvironmentId: string | null = null
+    runtimeEnvironmentId: string | null = null,
+    onlyTarget?: EditorExternalWatchTarget
   ): void => {
-    const target = findTarget(payload.worktreePath, runtimeEnvironmentId)
-    if (!target) {
+    // Why: a re-watch resync is about one workspace; fanning it out would clear another's marks and reload its tabs.
+    const found =
+      onlyTarget ?? findTargets(payload.worktreePath, runtimeEnvironmentId, payload.connectionId)
+    const targets = isTargetList(found) ? found : found ? [found] : []
+    if (targets.length === 0) {
       return
     }
     // Why: this app-level hook owns watcher subscriptions; other consumers listen here so they don't fight over watch/unwatch ownership.
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
       window.dispatchEvent(
         new CustomEvent<WorktreeFileChangeEventDetail>(ORCA_WORKTREE_FILE_CHANGE_EVENT, {
-          detail: { payload, runtimeEnvironmentId: target.runtimeEnvironmentId }
+          detail: { payload, runtimeEnvironmentId: targets[0].runtimeEnvironmentId }
         })
       )
     }
+    for (const target of targets) {
+      reconcileTarget(payload, target)
+    }
+  }
 
+  const reconcileTarget = (payload: FsChangedPayload, target: EditorExternalWatchTarget): void => {
     // Why: one batch index keeps local WSL alias normalization out of event×tab loops.
     const openFilesAtStart = useAppStore.getState().openFiles
     const batchPaths = indexEditorExternalWatchBatchPaths(payload, openFilesAtStart, {
