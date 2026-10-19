@@ -7,6 +7,10 @@ import {
 } from '../../shared/node-markdown-document-listing'
 import type { MarkdownDocument } from '../../shared/filesystem-entry-types'
 
+/**
+ * Lists Markdown documents under a native or WSL root, allowing partial results only
+ * for ripgrep traversal errors (exit 2) with at least one valid document.
+ */
 export async function listMarkdownDocuments(
   rootPath: string,
   options: { wslDistro?: string; signal?: AbortSignal } = {}
@@ -23,6 +27,7 @@ export async function listMarkdownDocuments(
     stdio: ['ignore', 'pipe', 'pipe']
   })
   return collectMarkdownDocuments(child, rootPath, Boolean(distro), options.signal, {
+    allowPartialListing: true,
     stopProcess: () => stopBundledRipgrep(child, Boolean(distro))
   })
 }
