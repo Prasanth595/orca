@@ -119,12 +119,25 @@ export abstract class OrcaRuntimeWithGetStructuredAgentSessionCreateSupport exte
     input: StructuredAgentSessionCreateIntentInput
   ): Promise<AgentSessionAttachParams & { hostLaunchDirectory?: string }> {
     if (input.resumeFrom) {
-      requireUnownedStructuredAgentSessionAdoption({
-        host: getStructuredAgentSessionHost(),
-        agent: input.agent,
-        providerSessionId: input.resumeFrom.providerSessionId,
-        selfSessionId: input.envelope.sessionId
-      })
+      const { providerSessionId, cliSource } = input.resumeFrom
+      try {
+        requireUnownedStructuredAgentSessionAdoption({
+          host: getStructuredAgentSessionHost(),
+          agent: input.agent,
+          providerSessionId,
+          selfSessionId: input.envelope.sessionId
+        })
+      } catch (ownerConflict) {
+        // A switch out of a live terminal refuses as such; opening the owning chat would add a writer.
+        if (cliSource) {
+          await this.assertStructuredAdoptionTerminalWritersExited(
+            input.agent,
+            providerSessionId,
+            cliSource
+          )
+        }
+        throw ownerConflict
+      }
     }
     const structuredAgentCliSourceEvidence =
       input.structuredAgentCliSourceEvidence ??

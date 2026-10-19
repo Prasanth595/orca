@@ -122,10 +122,7 @@ describe('structured agent-session create intent', () => {
         envelope: { sessionId: 'new-chat', clientOperationId: 'operation-1' },
         worktree: 'id:another-workspace',
         agent: 'claude',
-        resumeFrom: {
-          providerSessionId: 'provider-session-alpha-1',
-          cliSource: { workspaceId: 'another-workspace', paneKey: 'missing-pane' }
-        }
+        resumeFrom: { providerSessionId: 'provider-session-alpha-1' }
       })
     ).rejects.toMatchObject({
       refusal: {
@@ -138,6 +135,40 @@ describe('structured agent-session create intent', () => {
     })
     expect(support).not.toHaveBeenCalled()
     expect(sourceRows).not.toHaveBeenCalled()
+  })
+
+  it('refuses a switch out of a live terminal before naming the chat that owns the conversation', async () => {
+    const record = agentSessionRecordFixture()
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: early ownership admission only reads the host's record list.
+    setStructuredAgentSessionHost({
+      deps: { store: { listRecords: () => [record] } }
+    } as unknown as StructuredAgentSessionHost)
+    const runtime = new OrcaRuntimeService()
+    const writers = vi.spyOn(runtime, 'assertStructuredAdoptionTerminalWritersExited')
+    const intent = () =>
+      runtime.resolveStructuredAgentSessionCreateIntent({
+        envelope: { sessionId: 'new-chat', clientOperationId: 'operation-1' },
+        worktree: 'id:another-workspace',
+        agent: 'claude',
+        resumeFrom: {
+          providerSessionId: 'provider-session-alpha-1',
+          cliSource: { workspaceId: 'another-workspace', paneKey: 'pane-1' }
+        }
+      })
+    const liveWriter = Object.assign(new Error('live'), {
+      refusal: { code: 'agent_session_conflict', details: { reason: 'conversationHeldElsewhere' } }
+    })
+    writers.mockRejectedValueOnce(liveWriter)
+    await expect(intent()).rejects.toBe(liveWriter)
+    // At rest, the switch opens the owning chat as before.
+    writers.mockResolvedValueOnce()
+    await expect(intent()).rejects.toMatchObject({
+      refusal: { details: { owner: { sessionId: record.sessionId } } }
+    })
+    expect(writers).toHaveBeenCalledWith('claude', 'provider-session-alpha-1', {
+      workspaceId: 'another-workspace',
+      paneKey: 'pane-1'
+    })
   })
 
   it('pins the selected Codex launch home after normal launch preparation', async () => {
