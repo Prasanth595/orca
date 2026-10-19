@@ -62,6 +62,12 @@ export const hostScreenSecondaryStyles = createThemedStyles(() =>
       color: colors.textMuted,
       marginTop: 2
     },
+    optionPending: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      marginTop: spacing.xs
+    },
     clearFiltersText: {
       fontSize: 13,
       color: colors.textSecondary

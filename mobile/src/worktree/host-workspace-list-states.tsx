@@ -49,6 +49,20 @@ export function HostWorkspaceListStates(
   return null
 }
 
+/** The host serves a list this page cannot build: a page from the host's own build can. */
+export function HostWorkspaceListReopen() {
+  useMobileTheme()
+
+  return (
+    <View style={styles.centered}>
+      <Text style={styles.emptyText}>Reopen to update</Text>
+      <Text style={styles.catalogErrorDetail}>
+        This host lists workspaces in a way this page does not know yet.
+      </Text>
+    </View>
+  )
+}
+
 const styles = createThemedStyles(() =>
   StyleSheet.create({
     centered: {

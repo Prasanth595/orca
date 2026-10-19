@@ -17,7 +17,8 @@ vi.mock('lucide-react-native', () => ({
   File: 'File',
   FileText: 'FileText',
   Globe: 'Globe',
-  Plus: 'Plus'
+  Plus: 'Plus',
+  SquareTerminal: 'SquareTerminal'
 }))
 vi.mock('../components/MobileAgentIcon', () => ({ MobileAgentIcon: () => null }))
 vi.mock('../platform/haptics', () => ({ triggerMediumImpact: vi.fn() }))
@@ -101,12 +102,25 @@ it.each([false, true])(
       act(() => applyMobileColorScheme(scheme))
       const palette = scheme === 'light' ? lightColors : darkColors
       expect(rows()[0]).toBe(selected)
+      expect(selected.props.accessibilityRole).toBe('tab')
+      expect(selected.props.accessibilityLabel).toBe('Preview')
+      expect(selected.props.accessibilityState).toEqual({ selected: true })
+      expect(selected.props.style[0].minHeight).toBe(44)
+      expect(selected.props.style[0].minWidth).toBe(44)
       expect(selected.props.style[2].backgroundColor).toBe(palette.bgRaised)
       expect(selected.props.style[0].borderRightColor).toBe(palette.borderSubtle)
       const labels = mounted.root.findAll((node) => String(node.type) === 'Text')
       expect(labels[0].props.style[1].color).toBe(palette.textPrimary)
       expect(labels[1].props.style[0].color).toBe(palette.textSecondary)
       expect(mounted.root.findAll((node) => String(node.type) === 'Globe')[0].props.color).toBe(
+        palette.textSecondary
+      )
+      const newTab = rows().find((row) => row.props.accessibilityLabel === 'New tab')
+      expect(newTab?.props.hitSlop).toBe(4)
+      expect(newTab?.props.disabled).toBe(false)
+      expect(newTab?.props.style({ pressed: true })[0]).toMatchObject({ width: 36, height: 36 })
+      expect(newTab?.props.style({ pressed: true })[1].backgroundColor).toBe(palette.bgRaised)
+      expect(mounted.root.findAll((node) => String(node.type) === 'Plus')[0].props.color).toBe(
         palette.textSecondary
       )
       expect(controller.tabStripOffsetRef!.current).toBe(80)
