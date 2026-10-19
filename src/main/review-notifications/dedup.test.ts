@@ -7,7 +7,9 @@ import {
   createFileWatermarkStore,
   createInMemoryWatermarkStore,
   MAX_FINGERPRINTS,
-  watermarkKey
+  skewBack,
+  watermarkKey,
+  WATERMARK_SKEW_MS
 } from './dedup'
 import type { ItemSnapshot } from './transitions'
 
@@ -17,6 +19,18 @@ describe('dedup', () => {
     expect(watermarkKey('gitlab', 'h', 'r', 'mr')).not.toBe(
       watermarkKey('gitlab', 'h', 'r', 'issue')
     )
+  })
+
+  it('watermarkKey distinguishes the closed-listing cursor', () => {
+    expect(watermarkKey('gitlab', 'h', 'r', 'mr-closed')).not.toBe(
+      watermarkKey('gitlab', 'h', 'r', 'mr')
+    )
+  })
+
+  it('skewBack subtracts the overlap so exclusive windows cannot skip items', () => {
+    expect(skewBack('2026-10-19T12:00:00Z')).toBe('2026-10-19T11:59:00.000Z')
+    expect(WATERMARK_SKEW_MS).toBe(60_000)
+    expect(skewBack('2026-10-19T12:00:00Z', 1000)).toBe('2026-10-19T11:59:59.000Z')
   })
 
   it('advanceWatermark moves forward only (clock skew never rewinds)', () => {

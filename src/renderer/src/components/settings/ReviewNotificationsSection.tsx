@@ -126,7 +126,7 @@ export function ReviewNotificationsSection({
     }
     const n = Number(next)
     if (Number.isFinite(n)) {
-      apply(Math.max(1, n))
+      apply(Math.max(1, Math.floor(n)))
     }
   }
 

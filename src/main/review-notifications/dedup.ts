@@ -31,13 +31,28 @@ export type ReviewWatermarkStore = {
   flush: () => Promise<void>
 }
 
+export type ReviewWatermarkKind = 'mr' | 'issue' | 'mr-closed'
+
 export function watermarkKey(
   provider: string,
   host: string,
   repo: string,
-  kind: 'mr' | 'issue'
+  kind: ReviewWatermarkKind
 ): string {
   return [provider, host.toLowerCase(), repo.toLowerCase(), kind].join('|')
+}
+
+/**
+ * Overlap subtracted from a listing cursor before it is persisted. Forge
+ * `updated_after`/`since` windows are exclusive and second-precision, so
+ * without overlap two items sharing a timestamp could skip the later one
+ * forever. Re-fetched items are harmless: fingerprints dedup open items and
+ * resolved snapshots are deleted after the first resolve.
+ */
+export const WATERMARK_SKEW_MS = 60_000
+
+export function skewBack(iso: string, ms: number = WATERMARK_SKEW_MS): string {
+  return new Date(Date.parse(iso) - ms).toISOString()
 }
 
 /**

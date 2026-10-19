@@ -104,4 +104,24 @@ describe('ReviewNotificationsSection', () => {
       reviewNotifications: expect.objectContaining({ maxNotificationsPerHour: 3 })
     })
   })
+
+  it('floors fractional values in numeric fields', () => {
+    const updateRepo = vi.fn()
+    const { container } = render(
+      <ReviewNotificationsSection repo={enabledRepo()} updateRepo={updateRepo} />
+    )
+    const input = container.querySelector<HTMLInputElement>(
+      '#review-notifications-gitlab-projectid-r1'
+    )
+    expect(input).not.toBeNull()
+    // A fractional project ID would produce an invalid GitLab API path.
+    fireEvent.change(input!, { target: { value: '2.5' } })
+    expect(updateRepo).toHaveBeenCalledWith('r1', {
+      reviewNotifications: expect.objectContaining({
+        providers: expect.objectContaining({
+          gitlab: expect.objectContaining({ projectId: 2 })
+        })
+      })
+    })
+  })
 })

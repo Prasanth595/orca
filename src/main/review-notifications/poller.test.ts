@@ -407,3 +407,119 @@ describe('poller orphan jobs', () => {
     h.poller.stop()
   })
 })
+
+describe('poller listing cursors', () => {
+  // Sources simulate forge pagination: items with updatedAt > since, oldest
+  // 50 first (sort=asc, per_page=50, no further pages followed).
+  function pagedHarness() {
+    const nowRef = { now: new Date('2026-10-19T12:00:00Z').getTime() }
+    const store = createInMemoryWatermarkStore()
+    let openItems: ReviewEvent[] = []
+    let closedItems: ReviewEvent[] = []
+    const pageOf = (items: ReviewEvent[], since: string) =>
+      items
+        .filter((e) => e.updatedAt > since)
+        .sort((a, b) => (a.updatedAt < b.updatedAt ? -1 : a.updatedAt > b.updatedAt ? 1 : 0))
+        .slice(0, 50)
+    const poller = new ReviewNotificationPoller({
+      getRepos: () => [
+        {
+          id: 'r1',
+          displayName: 'proj',
+          reviewNotifications: gitlabConfig({
+            pollIntervalMinutes: 60,
+            maxNotificationsPerHour: 1000
+          })
+        }
+      ],
+      getGlobalEnabled: () => true,
+      store,
+      delivery: { deliver: async () => {}, deliverDigest: async () => {} },
+      now: () => nowRef.now,
+      random: () => 0.5,
+      gitlabList: async (_provider, since) => ({ mrs: pageOf(openItems, since), issues: [] }),
+      githubList: async () => ({ mrs: [], issues: [] }),
+      gitlabListClosed: async (_provider, since) => ({
+        mrs: pageOf(closedItems, since),
+        issues: []
+      }),
+      githubListClosed: async () => ({ mrs: [], issues: [] }),
+      setTimeoutFn: () => ({}),
+      clearTimeoutFn: () => {}
+    })
+    poller.reconcile()
+    return {
+      poller,
+      nowRef,
+      setOpen: (items: ReviewEvent[]) => {
+        openItems = items
+      },
+      setClosed: (items: ReviewEvent[]) => {
+        closedItems = items
+      }
+    }
+  }
+
+  // Minutes after 2026-10-19T11:00:00Z.
+  const at = (mins: number) =>
+    new Date(new Date('2026-10-19T11:00:00Z').getTime() + mins * 60000).toISOString()
+  const openMr = (iid: number, mins: number): ReviewEvent =>
+    mrEvent({ iid, action: 'opened', updatedAt: at(mins), title: `MR ${iid}` })
+  const closedMr = (iid: number, mins: number): ReviewEvent =>
+    mrEvent({ iid, action: 'closed', updatedAt: at(mins), title: `MR ${iid}` })
+
+  it('resolves every closed item across polls when the closed listing exceeds per_page', async () => {
+    const h = pagedHarness()
+    // Polls 1-2: 60 open MRs, all notified (the open listing itself pages).
+    h.setOpen(Array.from({ length: 60 }, (_, i) => openMr(i + 1, i + 1)))
+    h.setClosed([])
+    await h.poller.pollOnce('r1', 'gitlab')
+    await h.poller.pollOnce('r1', 'gitlab')
+
+    // Poll 2: all 60 now closed, plus a newer open MR. The closed listing
+    // returns only the oldest 50 (per_page); the open item is newer.
+    h.nowRef.now = new Date('2026-10-19T12:10:00Z').getTime()
+    h.setOpen([openMr(61, 91)])
+    h.setClosed(Array.from({ length: 60 }, (_, i) => closedMr(i + 1, 60 + (i + 1) * 0.5)))
+    const second = await h.poller.pollOnce('r1', 'gitlab')
+    expect(second.filter((i) => i.disposition === 'resolve')).toHaveLength(50)
+
+    // Poll 3: the remaining 10 closed items must still resolve. With a shared
+    // cursor the newer open item would have advanced the watermark past them.
+    h.nowRef.now = new Date('2026-10-19T12:20:00Z').getTime()
+    const third = await h.poller.pollOnce('r1', 'gitlab')
+    const resolved = [...second, ...third]
+      .filter((i) => i.disposition === 'resolve')
+      .map((i) => i.event.iid)
+      .sort((a, b) => a - b)
+    expect(resolved).toEqual(Array.from({ length: 60 }, (_, i) => i + 1))
+  })
+
+  it('does not miss open items when a newer closed item exists', async () => {
+    const h = pagedHarness()
+    // Polls 1-2: 60 open MRs, all notified (the open listing itself pages).
+    h.setOpen(Array.from({ length: 60 }, (_, i) => openMr(i + 1, i + 1)))
+    h.setClosed([])
+    await h.poller.pollOnce('r1', 'gitlab')
+    await h.poller.pollOnce('r1', 'gitlab')
+
+    // Poll 2: 60 new open MRs plus one closed item newer than all of them.
+    // The open listing returns only the oldest 50 (per_page).
+    h.nowRef.now = new Date('2026-10-19T12:10:00Z').getTime()
+    h.setOpen(Array.from({ length: 60 }, (_, i) => openMr(101 + i, 60 + (i + 1) * 0.5)))
+    h.setClosed([closedMr(1, 91)])
+    const second = await h.poller.pollOnce('r1', 'gitlab')
+    expect(second.filter((i) => i.disposition === 'notify')).toHaveLength(50)
+    expect(second.filter((i) => i.disposition === 'resolve')).toHaveLength(1)
+
+    // Poll 3: the remaining 10 open MRs must still notify. With a shared
+    // cursor the newer closed item would have advanced the watermark past them.
+    h.nowRef.now = new Date('2026-10-19T12:20:00Z').getTime()
+    const third = await h.poller.pollOnce('r1', 'gitlab')
+    const notified = [...second, ...third]
+      .filter((i) => i.disposition === 'notify')
+      .map((i) => i.event.iid)
+      .sort((a, b) => a - b)
+    expect(notified).toEqual(Array.from({ length: 60 }, (_, i) => 101 + i))
+  })
+})

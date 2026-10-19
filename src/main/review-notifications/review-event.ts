@@ -71,3 +71,12 @@ export type ReviewPollItem = {
   event: ReviewEvent
   disposition: ReviewPollDisposition
 }
+
+/** Latest updatedAt across events, if any. */
+export function maxUpdatedAt(events: ReviewEvent[]): string | undefined {
+  return events
+    .map((e) => e.updatedAt)
+    .filter(Boolean)
+    .sort()
+    .pop()
+}
