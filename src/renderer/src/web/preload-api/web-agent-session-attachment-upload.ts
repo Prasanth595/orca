@@ -1,13 +1,16 @@
 import {
   agentSessionAttachmentAppends,
   agentSessionPastedImageName,
+  agentSessionPastedTextName,
   base64DecodedByteLength,
+  type AgentSessionAttachmentClipboardTarget,
   type AgentSessionAttachmentUploadCommitResult,
   type AgentSessionAttachmentUploadTarget
 } from '../../../../shared/agent-session-attachments'
 import { callEnvironmentEnvelope } from './web-runtime-calls'
 import { resolveEnvironment } from './web-runtime-session'
 import { createBrowserUuid } from '@/lib/browser-uuid'
+import { blobToBase64 } from '@/lib/image-blob-png'
 
 const ATTACHMENT_CALL_TIMEOUT_MS = 30_000
 const SERVER_CHANGED = 'The paired Orca server changed while the request was in progress.'
@@ -47,14 +50,15 @@ async function callPinned<TResult>(
 /** The browser client's paste into a structured chat: the same store the desktop client uses. */
 export async function saveClipboardImageAsWebAgentSessionAttachment(
   contentBase64: string,
-  target: AgentSessionAttachmentUploadTarget
+  target: AgentSessionAttachmentUploadTarget,
+  name: string = agentSessionPastedImageName(Date.now(), createBrowserUuid())
 ): Promise<string> {
   const { uploadId } = await callPinned<{ uploadId: string }>(
     target,
     'agentSessionAttachment.uploadStart',
     {
       sessionId: target.sessionId,
-      name: agentSessionPastedImageName(Date.now(), createBrowserUuid()),
+      name,
       byteLength: base64DecodedByteLength(contentBase64)
     }
   )
@@ -73,4 +77,21 @@ export async function saveClipboardImageAsWebAgentSessionAttachment(
     await callPinned(target, 'agentSessionAttachment.uploadAbort', { uploadId }).catch(() => {})
     throw error
   }
+}
+
+/** A long text paste saved as a file: only a chat's store on its server can keep one here, since
+ *  a browser has no local paste folder. */
+export async function savePastedTextAsWebAgentSessionAttachment(args: {
+  text: string
+  runtimeEnvironmentId?: string | null
+  agentSessionAttachment?: AgentSessionAttachmentClipboardTarget
+}): Promise<string> {
+  if (!args.agentSessionAttachment || !args.runtimeEnvironmentId) {
+    throw new Error('Pasted text can only be attached to a chat on a server here.')
+  }
+  return saveClipboardImageAsWebAgentSessionAttachment(
+    await blobToBase64(new Blob([args.text], { type: 'text/plain' })),
+    { ...args.agentSessionAttachment, environmentId: args.runtimeEnvironmentId },
+    agentSessionPastedTextName(Date.now(), createBrowserUuid())
+  )
 }

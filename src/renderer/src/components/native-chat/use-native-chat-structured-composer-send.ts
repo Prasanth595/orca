@@ -19,6 +19,7 @@ import {
   updateNativeChatComposerDraft
 } from './native-chat-composer-draft-store'
 import { nativeChatComposerDraftLeftAfterSend } from './native-chat-composer-draft-comparison'
+import { admitNativeChatPastedText } from './native-chat-composer-pasted-text-references'
 
 export type UseNativeChatStructuredComposerSendArgs = {
   agent: AgentType
@@ -64,6 +65,9 @@ export function useNativeChatStructuredComposerSend({
     async (text, attachments = imageAttachments): Promise<void> => {
       // A picked command is held like Send: it would carry attachments still uploading, pathless.
       if (!structuredTransport || attachments.some((attachment) => attachment.pending)) {
+        return
+      }
+      if (!admitNativeChatPastedText(draftScopeKey, text, structuredTransport.onError)) {
         return
       }
       const hostCommand = isNativeChatStructuredHostCommand(text, agent, structuredTransport)
