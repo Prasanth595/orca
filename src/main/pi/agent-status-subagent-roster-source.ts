@@ -1,18 +1,128 @@
-// Why: Pi settles its own turn while pi-subagents children keep running, so the
-// generated extension holds the pane's completion until every child it saw start is gone.
+// Why: the pane's completion waits for its children. Pi uses witnessed lifecycle
+// events; OMP can recover missed starts from its positively scoped native registry.
 
 import type { PiAgentKind } from '../../shared/pi-agent-kind'
-import { AGENT_STATUS_MAX_SUBAGENTS } from '../../shared/agent-status-types'
+import {
+  AGENT_STATUS_ASSISTANT_MESSAGE_MAX_LENGTH,
+  AGENT_STATUS_INTERACTIVE_PROMPT_MAX_LENGTH,
+  AGENT_STATUS_MAX_SUBAGENTS,
+  AGENT_STATUS_TOOL_NAME_MAX_LENGTH,
+  AGENT_TYPE_MAX_LENGTH
+} from '../../shared/agent-status-types'
 
-// Module scope: post() reads the roster when a body is built, so a coalesced or
-// retried post always carries the children live at delivery.
+// Module scope: post() reads the roster when a body is built. Native delivery is
+// fenced after failed/incomplete enumeration rather than renewing cached child proof.
 export function getPiSubagentSnapshotSourceLines(): string[] {
   return [
     'type SubagentDetail = { agentType?: string; description?: string; startedAt: number; workflow?: boolean; parent?: string; registration?: object }',
-    'type SubagentRoster = { active: Set<string>; exited?: Set<string>; details?: Map<string, SubagentDetail>; waiting: boolean; ownsPane?: boolean; runGeneration?: number; endedRunGeneration?: number; completionPostedGeneration?: number; parked?: Map<string, Map<string, SubagentDetail>>; onEvent?: (event: unknown, forcedStatus?: string) => void; listener?: (event: unknown) => void; onRunnerExit?: (event: unknown) => void; runnerExitListener?: (event: unknown) => void; runnerExitCheck?: ReturnType<typeof setTimeout> | null; onRunnerExitSettled?: () => void }',
+    'type SubagentRoster = { active: Set<string>; exited?: Set<string>; details?: Map<string, SubagentDetail>; waiting: boolean; ownsPane?: boolean; runGeneration?: number; endedRunGeneration?: number; completionPostedGeneration?: number; parked?: Map<string, Map<string, SubagentDetail>>; onEvent?: (event: unknown, forcedStatus?: string) => void; listener?: (event: unknown) => void; onRunnerExit?: (event: unknown) => void; runnerExitListener?: (event: unknown) => void; runnerExitCheck?: NodeJS.Timeout | null; onRunnerExitSettled?: () => void; ompRegistryObserver?: OmpRegistryObservation }',
     // Why: interpolated, not re-typed, so the extension cap cannot drift from the host's.
     `const MAX_SUBAGENT_SNAPSHOT = ${AGENT_STATUS_MAX_SUBAGENTS}`,
     'let subagentRoster: SubagentRoster | null = null',
+    '',
+    `const OMP_STATUS_TEXT_LIMIT = ${AGENT_STATUS_ASSISTANT_MESSAGE_MAX_LENGTH}`,
+    `const OMP_STATUS_INPUT_LIMIT = ${AGENT_STATUS_INTERACTIVE_PROMPT_MAX_LENGTH}`,
+    `const OMP_STATUS_TOOL_LIMIT = ${AGENT_STATUS_TOOL_NAME_MAX_LENGTH}`,
+    `const OMP_STATUS_ROLE_LIMIT = ${AGENT_TYPE_MAX_LENGTH}`,
+    ...String.raw`
+type OmpRootStatus = { state: 'working' | 'blocked' | 'waiting' | 'done'; prompt?: string; tool_name?: string; tool_input?: unknown; role?: 'assistant'; text?: string; session_boundary?: true; input_pending?: boolean }
+type OmpNativeManager = { getSessionId?: () => unknown; getSessionFile?: () => unknown }
+type OmpNativeSession = { sessionManager?: OmpNativeManager; isStreaming?: boolean; hasPendingAsyncWork?: () => boolean }
+type OmpNativeRef = { id: string; displayName?: string; kind: string; parentId?: string; status: string; session?: OmpNativeSession | null; sessionFile?: string | null; createdAt?: number; history?: { agent?: string }; lifecycle?: { acceptedAt?: number; terminalAt?: number } }
+type OmpNativeRegistry = { list: () => OmpNativeRef[]; get: (id: string) => OmpNativeRef | undefined; onChange: (handler: (event: { type?: string; ref?: OmpNativeRef }) => void) => (() => void); isRunning?: (ref: OmpNativeRef) => boolean }
+type OmpRegistryApi = { pi?: { MAIN_AGENT_ID?: unknown; AgentRegistry?: { global?: () => unknown } } }
+type OmpRegistryContext = { agent?: { id?: unknown; kind?: unknown }; agentKind?: unknown; sessionManager?: OmpNativeManager }
+type OmpRootEvent = { prompt?: unknown; toolName?: unknown; input?: unknown; args?: unknown; reason?: unknown; message?: { role?: unknown; content?: unknown }; willContinue?: boolean }
+type OmpRegistryObservation = { owner: object; roster: SubagentRoster; registry: OmpNativeRegistry; root: OmpNativeRef; manager: OmpNativeManager; sessionId: string; sessionFile: string; readonly scopeInstance: string; readonly scopeOrder: number; status: OmpRootStatus; identityBoundaryPending: boolean; approvalDetails?: { tool_name?: string; tool_input?: string }; questionToolName?: string; stopped: boolean; verified: boolean; pending: boolean; readUnavailable: boolean; rootExecuting: boolean; rootBaselinePending: boolean; dirty: boolean; unsubscribe?: () => void; changeTimer: NodeJS.Timeout | null; refreshTimer: NodeJS.Timeout | null }
+let ompRegistryObservation: OmpRegistryObservation | null = null
+
+function isOmpNativeSessionExecuting(session: OmpNativeSession | null | undefined): boolean {
+  return session?.isStreaming === true || (typeof session?.hasPendingAsyncWork === 'function' && session.hasPendingAsyncWork() === true)
+}
+
+function isOmpNativeRegistry(registry: unknown): registry is OmpNativeRegistry {
+  return typeof registry === 'object' && registry !== null &&
+    'list' in registry && typeof registry.list === 'function' &&
+    'get' in registry && typeof registry.get === 'function' &&
+    'onChange' in registry && typeof registry.onChange === 'function'
+}
+
+function getOmpNativeRegistry(api: OmpRegistryApi): OmpNativeRegistry | null {
+  if (!isOmpRuntime()) return null
+  try {
+    const Registry = api?.pi?.AgentRegistry
+    if (typeof Registry?.global !== 'function') return null
+    const registry = Registry.global()
+    return isOmpNativeRegistry(registry) ? registry : null
+  } catch { return null }
+}
+
+function getOmpRegistryRootRef(api: OmpRegistryApi, registry: OmpNativeRegistry, ctx: OmpRegistryContext): OmpNativeRef | null {
+  if (!isOmpRuntime() || !ctx?.sessionManager) return null
+  const kind = ctx.agent?.kind ?? ctx.agentKind
+  if (kind !== undefined && kind !== 'main') return null
+  const id = ctx.agent?.id ?? api?.pi?.MAIN_AGENT_ID
+  if (typeof id !== 'string' || !id) return null
+  try {
+    const ref = registry.get(id)
+    return ref?.kind === 'main' && ref.session?.sessionManager === ctx.sessionManager ? ref : null
+  } catch { return null }
+}
+
+function isOmpRegistryObserved(): boolean {
+  const observation = ompRegistryObservation
+  return isOmpRuntime() && !!observation && typeof observation.unsubscribe === 'function' && !observation.stopped && observation.roster === subagentRoster
+}
+
+// Unknown native membership holds completion but is never published as fresh evidence.
+function isOmpRegistryPending(): boolean {
+  return isOmpRegistryObserved() && ompRegistryObservation?.pending === true
+}
+
+// Failed enumeration and positively obsolete ownership cannot renew cached proof.
+// Ordinary 200ms coalescing alone does not invalidate the last verified read.
+function isOmpRegistryReadUnavailable(): boolean {
+  return isOmpRuntime() && (subagentRoster?.ownsPane === false || (isOmpRegistryObserved() && ompRegistryObservation?.readUnavailable === true))
+}
+
+function ompRegistrySnapshotMetadata(hookEventName?: string): Record<string, unknown> {
+  const observation = ompRegistryObservation
+  if (hookEventName !== 'subagents_update' || !isOmpRegistryObserved() || !observation?.verified) return {}
+  return { omp_status: { ...observation.status, ...(observation.identityBoundaryPending ? { session_boundary: true } : {}) } }
+}
+
+// A turn can start before the coalesced first snapshot reaches Orca. Keep the
+// separate identity proof until that identity's authoritative snapshot is delivered.
+function acknowledgeOmpRegistrySnapshot(metadata: Record<string, unknown>): void {
+  const observation = ompRegistryObservation
+  if (!isOmpRegistryObserved() || !observation || observation.roster.ownsPane !== true || observation.roster.ompRegistryObserver !== observation ||
+      typeof metadata.session_id !== 'string' || !metadata.session_id || typeof metadata.session_file !== 'string' || !metadata.session_file ||
+      metadata.session_id !== observation.sessionId || metadata.session_file !== observation.sessionFile ||
+      metadata.omp_scope_instance !== observation.scopeInstance || metadata.omp_scope_order !== observation.scopeOrder) return
+  try {
+    if (observation.registry.get(observation.root.id) !== observation.root || observation.root.session?.sessionManager !== observation.manager ||
+        observation.manager.getSessionId?.() !== observation.sessionId || observation.manager.getSessionFile?.() !== observation.sessionFile) return
+  } catch { return }
+  observation.identityBoundaryPending = false
+}
+
+function retireOmpRegistryObservation(observation: OmpRegistryObservation): void {
+  observation.stopped = true
+  observation.pending = false
+  observation.readUnavailable = false
+  observation.approvalDetails = undefined
+  if (observation.changeTimer !== null) clearTimeout(observation.changeTimer)
+  if (observation.refreshTimer !== null) clearTimeout(observation.refreshTimer)
+  observation.changeTimer = null
+  observation.refreshTimer = null
+  try { observation.unsubscribe?.() } catch {}
+  observation.unsubscribe = undefined
+  if (observation.roster.ompRegistryObserver === observation) observation.roster.ompRegistryObserver = undefined
+  if (ompRegistryObservation === observation) ompRegistryObservation = null
+}
+`
+      .trim()
+      .split('\n'),
     '',
     // Why: an exited runner is already gone, and a pi-subagents workflow run is the lead
     // coordinating children that post their own rows; both still hold the pane.
@@ -20,7 +130,7 @@ export function getPiSubagentSnapshotSourceLines(): string[] {
     '  return roster.active.has(id) && !roster.exited?.has(id) && roster.details?.get(id)?.workflow !== true',
     '}',
     '',
-    'function subagentPayload(): Record<string, unknown> {',
+    'function subagentPayload(hookEventName?: string): Record<string, unknown> {',
     '  if (!subagentRoster) return {}',
     '  const subagents: Record<string, unknown>[] = []',
     '  for (const id of subagentRoster.active) {',
@@ -29,7 +139,8 @@ export function getPiSubagentSnapshotSourceLines(): string[] {
     "    subagents.push({ id, state: 'working', startedAt: detail?.startedAt ?? 0, ...(detail?.agentType ? { agentType: detail.agentType } : {}), ...(detail?.description ? { description: detail.description } : {}) })",
     '    if (subagents.length >= MAX_SUBAGENT_SNAPSHOT) break',
     '  }',
-    '  return subagents.length > 0 ? { subagents } : {}',
+    '  const verifiedNative = isOmpRegistryObserved() && ompRegistryObservation?.verified === true',
+    '  return { ...(subagents.length > 0 || verifiedNative ? { subagents } : {}), ...ompRegistrySnapshotMetadata(hookEventName) }',
     '}',
     ''
   ]
@@ -57,10 +168,10 @@ export function getPiSubagentRosterSetupSourceLines(kind: PiAgentKind): string[]
     '  lifecycleState.runGeneration ??= 0',
     '  lifecycleState.endedRunGeneration ??= 0',
     '  lifecycleState.completionPostedGeneration ??= -1',
-    // Why: an OMP task child runs this factory again on its own bus. Posts keep describing the
-    // lead's children, and the child's own subagents must not settle the lead's pane.
-    '  subagentRoster ??= lifecycleState',
-    '  const ownsPaneRoster = subagentRoster === lifecycleState',
+    // Why: a native child can load first. Only a proven root callback binds the pane's
+    // module roster; each bus may listen for the capability-absent lifecycle fallback.
+    '  if (!isOmpRuntime()) subagentRoster ??= lifecycleState',
+    '  const ownsPaneRoster = isOmpRuntime() || subagentRoster === lifecycleState',
     // Tells the children this registration saw start from the ones a /reload handed it.
     '  const registration = {}',
     '  function resetSubagentRoster(): void {',
@@ -111,7 +222,7 @@ export function getPiSubagentRosterEventSourceLines(): string[] {
     "    const id = typeof record.id === 'string' && record.id ? record.id : typeof record.runId === 'string' ? record.runId : ''",
     '    const status = forcedStatus ?? (event as { status?: unknown }).status',
     '    if (!id) return',
-    '    if (isOmpRuntime() && !lifecycleState.ownsPane) return',
+    '    if (isOmpRuntime() && (!lifecycleState.ownsPane || isOmpRegistryObserved())) return',
     "    if (status === 'started') {",
     '      lifecycleState.active.add(id)',
     // Why: pi-subagents redacts task prompts, so only the agent name, OMP's short label and a
@@ -144,6 +255,7 @@ export function getPiSubagentRosterEventSourceLines(): string[] {
     '    if (lifecycleState.waiting) postAgentEndOnce()',
     '  }',
     '  lifecycleState.onRunnerExit = (event: unknown): void => {',
+    '    if (isOmpRuntime() && (!lifecycleState.ownsPane || isOmpRegistryObserved())) return',
     "    const runId = event && typeof event === 'object' ? (event as { runId?: unknown }).runId : undefined",
     "    if (typeof runId !== 'string' || !lifecycleState.active.has(runId)) return",
     '    if (!lifecycleState.exited) lifecycleState.exited = new Set<string>()',

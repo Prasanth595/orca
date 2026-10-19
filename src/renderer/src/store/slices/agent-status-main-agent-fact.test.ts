@@ -138,6 +138,39 @@ describe("the host's turn start on a renderer status entry", () => {
     store.getState().setAgentStatus(PANE, { state: 'done', prompt: 'go', agentType: 'claude' })
     expect(store.getState().agentStatusByPaneKey[PANE]?.turnStartedAt).toBeUndefined()
   })
+
+  it('does not restore an old OMP turn clock across a same-state native session change', () => {
+    const store = createTestStore()
+    store
+      .getState()
+      .setAgentStatus(
+        PANE,
+        { state: 'working', prompt: 'old turn', agentType: 'omp' },
+        'OMP',
+        { updatedAt: 100, stateStartedAt: 100, turnStartedAt: 90 },
+        undefined,
+        { providerSession: { key: 'session_id', id: 'old', transcriptPath: '/sessions/old.jsonl' } }
+      )
+    for (const updatedAt of [200, 300]) {
+      store.getState().setAgentStatus(
+        PANE,
+        {
+          state: 'working',
+          prompt: 'new session',
+          agentType: 'omp',
+          mainAgent: { state: 'working', stateStartedAt: 200 }
+        },
+        'OMP',
+        { updatedAt, stateStartedAt: 200 },
+        undefined,
+        { providerSession: { key: 'session_id', id: 'new', transcriptPath: '/sessions/new.jsonl' } }
+      )
+      const entry = store.getState().agentStatusByPaneKey[PANE]
+      expect(entry.turnStartedAt).toBeUndefined()
+      expect(entry.mainAgent).toEqual({ state: 'working', stateStartedAt: 200 })
+      expect(entry.providerSession?.id).toBe('new')
+    }
+  })
 })
 
 describe('session-boundary done semantics (STA-3386)', () => {

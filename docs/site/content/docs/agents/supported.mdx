@@ -31,7 +31,7 @@ To restore prompts for one agent only, edit that agent's default arguments or en
 | GitHub Copilot CLI | Auto-setup                                                                                                                 | [GitHub](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli)                   |
 | OpenCode           | Auto-setup, status                                                                                                         | [OpenCode](https://opencode.ai/docs/cli/)                                                         |
 | Pi                 | Auto-setup, hooks, status                                                                                                  | [Pi](https://pi.dev)                                                                              |
-| OMP                | Auto-setup, hooks, status                                                                                                  | [OMP](https://omp.sh)                                                                             |
+| OMP                | Auto-setup, hooks, live subagent status                                                                                    | [OMP](https://omp.sh)                                                                             |
 | Prime Agent        | Auto-setup, hooks, status, session history                                                                                 | [Prime Intellect](https://github.com/PrimeIntellect-ai/prime-agent)                               |
 | Gemini             | Auto-setup                                                                                                                 | [Google](https://github.com/google-gemini/gemini-cli)                                             |
 | Antigravity        | Auto-setup, hooks, status                                                                                                  | [Google](https://antigravity.google/docs/cli-overview)                                            |
@@ -64,6 +64,29 @@ To restore prompts for one agent only, edit that agent's default arguments or en
 | Hermes             | Auto-setup                                                                                                                 | [Nous](https://hermes-agent.nousresearch.com/docs/)                                               |
 | OpenClaw           | Auto-setup                                                                                                                 | [OpenClaw](https://github.com/openclaw/openclaw)                                                  |
 | Trae               | Auto-setup via `traecli` (TRAE CN CLI)                                                                                     | [Trae](https://www.trae.ai/)                                                                      |
+
+## OMP: live subagent status
+
+Orca's managed status extension reads OMP's native agent registry. Children appear by their native
+IDs rather than repeated role names, and completed or cancelled children leave the live roster.
+Registry changes are coalesced for about 200 ms; active work is verified every five seconds, including
+quiet waits and background tools. Verification does not count as new model activity.
+
+After upgrading Orca, fully restart the app and OMP to load the updated extension. No extra tracking
+tool, daemon, model instruction, or enable switch is needed. Native tracking is capability-detected;
+OMP versions without the registry API retain lifecycle-only tracking.
+
+Snapshots belong to one root and its current session. Refreshes preserve the prompt, input waits,
+and turn clocks. A failed registry read cannot renew stale child evidence or prove that work exited.
+Session replacement clears the old roster and cannot inherit the previous session's clock.
+
+The existing compact sidebar is unchanged. Expand the worktree's agent count, then use the chevron
+on an OMP parent row to show or hide its children. All native child roles use the same tracking path.
+The shared roster displays up to 32 children; completion accounts for every discovered native child,
+including those beyond the display limit.
+
+For SSH workspaces, the execution host owns the registry and hook store; update Orca and OMP there.
+Loss of client contact remains `unverifiable`, not `exited`. Tracking also works in folder workspaces.
 
 ## ZCode: pick a CLI that ships the TUI
 

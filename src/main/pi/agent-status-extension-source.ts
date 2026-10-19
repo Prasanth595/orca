@@ -20,8 +20,8 @@ import { getPiSubagentSnapshotSourceLines } from './agent-status-subagent-roster
 export const ORCA_PI_AGENT_STATUS_EXTENSION_FILE = 'orca-agent-status.ts'
 
 /** Source of the status extension installed into a Pi-family agent's extension
- *  dir: it POSTs lifecycle, tool, and (under OMP) model events to Orca's hook
- *  endpoint. Returned as one self-contained string — it runs inside the agent. */
+ *  dir: it POSTs lifecycle/tool events, plus native OMP model and root-scoped
+ *  registry snapshots. Returned as one self-contained string — it runs inside the agent. */
 export function getPiAgentStatusExtensionSource(kind: PiAgentKind = 'pi'): string {
   // OMP resumes by id; its persistent file path lets native chat skip discovery.
   const sessionMetadataSourceLines =
@@ -48,6 +48,13 @@ export function getPiAgentStatusExtensionSource(kind: PiAgentKind = 'pi'): strin
           "  runtimeOmpSessionMetadata = typeof sessionId === 'string' && sessionId && typeof sessionFile === 'string' && sessionFile ? { session_id: sessionId, session_file: sessionFile } : {}",
           '  trackModelSession(runtimeOmpSessionMetadata.session_id)',
           '  updateModelMetadata(ctx)',
+          '}',
+          '',
+          '// The outgoing record keeps its scope through observation teardown and',
+          '// closeOutRun; the next session-context update replaces that record.',
+          'function setOmpPostSessionScope(instance: string, order: number): void {',
+          '  runtimeOmpSessionMetadata.omp_scope_instance = instance',
+          '  runtimeOmpSessionMetadata.omp_scope_order = order',
           '}',
           '',
           'function getPostSessionMetadata(ompRuntime: boolean): Record<string, unknown> {',
@@ -82,6 +89,11 @@ export function getPiAgentStatusExtensionSource(kind: PiAgentKind = 'pi'): strin
           'function updateRuntimeOmpSessionMetadata(ctx: unknown): void {',
           '  updateSessionMetadata(ctx)',
           '  updateModelMetadata(ctx)',
+          '}',
+          '',
+          'function setOmpPostSessionScope(instance: string, order: number): void {',
+          '  sessionMetadata.omp_scope_instance = instance',
+          '  sessionMetadata.omp_scope_order = order',
           '}',
           '',
           'function getPostSessionMetadata(_ompRuntime: boolean): Record<string, unknown> {',
@@ -124,8 +136,8 @@ export function getPiAgentStatusExtensionSource(kind: PiAgentKind = 'pi'): strin
   // Why: Pi resumes from an existing transcript; OMP resumes directly by session id (#8962).
   const payloadLine =
     kind !== 'omp'
-      ? '    payload: { hook_event_name: hookEventName, ...(ompRuntime ? metadata : getPersistedSessionMetadata(metadata)), ...(final ? {} : subagentPayload()), ...extra },'
-      : '    payload: { hook_event_name: hookEventName, ...metadata, ...(final ? {} : subagentPayload()), ...extra },'
+      ? '    payload: { hook_event_name: hookEventName, ...(ompRuntime ? metadata : getPersistedSessionMetadata(metadata)), ...rosterPayload, ...extra },'
+      : '    payload: { hook_event_name: hookEventName, ...metadata, ...rosterPayload, ...extra },'
 
   // Why: keep this string self-contained — it runs inside the pi process,
   // so it cannot import from Orca's main bundle. fs/http coords come from
@@ -210,20 +222,32 @@ export function getPiAgentStatusExtensionSource(kind: PiAgentKind = 'pi'): strin
     // Why: the body is built at delivery, so the session is pinned here, where the event happened.
     '  const metadata = getPostSessionMetadata(ompRuntime)',
     '  if (final) {',
-    '    postQueue.finalPosts.push({ revision: postQueue.postRevision, attempts: 0, delivered: false, hookEventName, extra, metadata, ompRuntime, final })',
+    '    queueFinalPost({ revision: postQueue.postRevision, attempts: 0, delivered: false, hookEventName, extra, metadata, ompRuntime })',
     '    drainPosts()',
     '    return',
     '  }',
     '  cancelPostRetry()',
+    "  const nativeSnapshot = ompRuntime && postQueue.latestPost?.hookEventName === 'subagents_update' && !postQueue.latestPost.delivered && samePostSession(postQueue.latestPost.metadata, metadata) ? postQueue.latestPost : null",
+    '// A root end can follow its snapshot before HTTP drains. Preserve both facts,',
+    '// including an active snapshot until its acknowledgment makes retention unnecessary.',
+    "  if (hookEventName === 'agent_end' && nativeSnapshot) {",
+    '    postQueue.pendingPost = nativeSnapshot',
+    '    queueFinalPost({ revision: postQueue.postRevision, attempts: 0, delivered: false, hookEventName, extra, metadata, ompRuntime })',
+    '    drainPosts()',
+    '    return',
+    '  }',
     // Why: a new turn supersedes a same-session completion even when /reload preserved its delivery.
     "  if (hookEventName === 'before_agent_start' || hookEventName === 'agent_start') retireTurnCompletionPosts(metadata)",
-    '// Model changes must not erase an unacknowledged completion in the latest-only slot.',
-    "  const previousCompletion = postQueue.latestPost?.hookEventName === 'agent_end' && !postQueue.latestPost.delivered && postQueue.latestPost.metadata.session_id === metadata.session_id",
+    '// Model changes retain completion; native registry snapshots must remain their own event.',
+    "  const previousCompletion = postQueue.latestPost?.hookEventName === 'agent_end' && !postQueue.latestPost.delivered && (ompRuntime ? samePostSession(postQueue.latestPost.metadata, metadata) : postQueue.latestPost.metadata.session_id === metadata.session_id) ? postQueue.latestPost : null",
+    "  if (ompRuntime && hookEventName === 'subagents_update' && previousCompletion && !previousCompletion.final) {",
+    '    queueFinalPost(previousCompletion)',
+    '  }',
     '  postQueue.pendingPost = {',
     '    revision: ++postQueue.postRevision,',
     '    attempts: 0,',
     '    delivered: false,',
-    "    hookEventName: ompRuntime && hookEventName === 'model_select' && previousCompletion ? 'agent_end' : hookEventName,",
+    "    hookEventName: nativeSnapshot && hookEventName === 'model_select' ? 'subagents_update' : ompRuntime && hookEventName === 'model_select' && previousCompletion ? 'agent_end' : hookEventName,",
     // Why: every coalesced snapshot must retain an open modal, not just its start event.
     kind === 'pi'
       ? '    extra: { ...extra, ...(!ompRuntime && piUiPromptDepth > 0 ? { ui_prompt_active: true } : {}) },'
@@ -245,7 +269,10 @@ export function getPiAgentStatusExtensionSource(kind: PiAgentKind = 'pi'): strin
     '  const coords = resolveHookCoords()',
     '  const paneKey = process.env.ORCA_PANE_KEY',
     '  if (!coords.port || !coords.token || !paneKey) return',
+    '  // A failed native read cannot renew the last verified child roster through a retry.',
+    "  if (ompRuntime && !final && isOmpRegistryReadUnavailable()) throw new Error('OMP registry snapshot is unavailable')",
     '  const url = `http://127.0.0.1:${coords.port}${resolveHookPath(ompRuntime)}`',
+    '  const rosterPayload = final ? undefined : subagentPayload(hookEventName)',
     '  const body = JSON.stringify({',
     '    paneKey,',
     "    launchToken: process.env.ORCA_AGENT_LAUNCH_TOKEN || '',",
@@ -286,6 +313,8 @@ export function getPiAgentStatusExtensionSource(kind: PiAgentKind = 'pi'): strin
     '  } finally {',
     '    if (timeout) clearTimeout(timeout)',
     '  }',
+    '  // Binding identity survives coalescing until Orca accepts its native snapshot.',
+    "  if (ompRuntime && hookEventName === 'subagents_update' && rosterPayload?.omp_status) acknowledgeOmpRegistrySnapshot(metadata)",
     '}',
     '',
     ...getPiAgentStatusWslCurlSourceLines(),
