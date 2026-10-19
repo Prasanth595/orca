@@ -1,4 +1,4 @@
-import { lstat } from 'node:fs/promises'
+import { stat } from 'node:fs/promises'
 import { isDefinitiveAbsence } from '../../../shared/definitive-filesystem-absence'
 import { waitForPromiseWithSignal } from '../../../shared/abort-signal-reason'
 import { isMissingCommandBinaryError } from '../exec-error'
@@ -13,8 +13,9 @@ function recordableCwd({ cwd, wsl }: ResolvedCommand): string | null {
   return wsl === null && cwd && !/^[\\/]{2}/.test(cwd) ? cwd : null
 }
 
+// Why stat: spawn's chdir follows symlinks, so a symlinked root whose target is gone is absent too.
 function isCwdAbsent(cwd: string): Promise<boolean> {
-  return lstat(cwd).then(() => false, isDefinitiveAbsence)
+  return stat(cwd).then(() => false, isDefinitiveAbsence)
 }
 
 /** Records a native cwd once a spawn ENOENT is proven to mean the folder, not the binary, is gone. */
@@ -27,7 +28,8 @@ export async function noteGitSpawnFailure(
   if (!cwd || !isMissingCommandBinaryError(error) || signal?.aborted || knownMissingCwds.has(cwd)) {
     return
   }
-  if (!(await isCwdAbsent(cwd))) {
+  // Why re-check: concurrent first failures for one folder must record and warn once.
+  if (!(await isCwdAbsent(cwd)) || knownMissingCwds.has(cwd)) {
     return
   }
   knownMissingCwds.add(cwd)
@@ -39,12 +41,16 @@ export async function noteGitSpawnFailure(
 
 /** Null for every cwd not known missing, so healthy repos pay one Set lookup and no await. */
 export function pendingKnownMissingGitCwdCheck(
-  command: ResolvedCommand,
+  cwd: string | undefined,
+  resolveCommand: () => ResolvedCommand,
   signal?: AbortSignal,
   encoding?: BufferEncoding | 'buffer'
 ): Promise<void> | null {
-  const cwd = recordableCwd(command)
   if (!cwd || !knownMissingCwds.has(cwd)) {
+    return null
+  }
+  const command = resolveCommand()
+  if (recordableCwd(command) !== cwd) {
     return null
   }
   return waitForPromiseWithSignal(isCwdAbsent(cwd), signal).then((absent) => {

@@ -23,6 +23,7 @@ import {
   assertRegisteredGitHubRepo,
   getGitHubLocalGitOptionArgs,
   getGitHubRepoConnectionId,
+  isPRRefreshCandidateRegistered,
   validateAutomaticPRRefreshCandidate
 } from './github-repo-routing'
 
@@ -48,8 +49,8 @@ export function registerGitHubPRRefreshHandlers(store: Store, stats: StatsCollec
       recordPRIfNeeded(repo, outcome)
     }
   })
-  setPRRefreshRegistrationCheck(
-    (candidate) => validateAutomaticPRRefreshCandidate(candidate, store).kind === 'ok'
+  setPRRefreshRegistrationCheck((candidate) =>
+    isPRRefreshCandidateRegistered(candidate, store.getRepos())
   )
 
   ipcMain.handle(

@@ -16,7 +16,8 @@ import {
   isQuietGitControlFlowExit,
   disableDirectWslGitAfterSuccessfulFallback,
   invalidateMissingDirectWslGit,
-  resolveGitCommand
+  resolveGitCommand,
+  resolveGitCommandWithoutProbe
 } from './git-command-resolution'
 import { prepareWindowsHostGitEnvironment } from './windows-host-git-environment'
 import { buildNetworkSshPolicyEnv } from './git-ssh-policy-env'
@@ -36,6 +37,16 @@ async function gitExecFileAsyncUnlocked(
   args: string[],
   options: GitExecOptions
 ): Promise<{ stdout: string; stderr: string }> {
+  // Why: before the span; a known-missing folder starts no process, so it records no git.exec.
+  const missingCwdCheck = pendingKnownMissingGitCwdCheck(
+    options.cwd,
+    () => resolveGitCommandWithoutProbe(args, options),
+    options.signal,
+    options.encoding
+  )
+  if (missingCwdCheck) {
+    await missingCwdCheck
+  }
   // Why: span the user-visible `git <subcommand>` form, not the resolved binary, so dashboards group by intent.
   return withGitSpan(
     { args, ...(options.cwd !== undefined ? { cwd: options.cwd } : {}) },
@@ -62,15 +73,6 @@ async function gitExecFileAsyncUnlocked(
         false,
         effectiveOptions.captureWslLoginShellOutput
       )
-      const missingCwdCheck = pendingKnownMissingGitCwdCheck(
-        resolved,
-        options.signal,
-        options.encoding
-      )
-      if (missingCwdCheck) {
-        span?.setAttribute('git.known_missing_cwd', true)
-        await missingCwdCheck
-      }
       const policy =
         effectiveOptions.useConfiguredSshCommandForNetwork || classifyGitCommand(args) === 'network'
           ? await buildNetworkSshPolicyEnv(effectiveOptions, args)
@@ -212,6 +214,15 @@ export async function gitExecFileAsyncBuffer(
     signal?: AbortSignal
   }
 ): Promise<{ stdout: Buffer }> {
+  const missingCwdCheck = pendingKnownMissingGitCwdCheck(
+    options.cwd,
+    () => resolveGitCommandWithoutProbe(args, options),
+    options.signal,
+    'buffer'
+  )
+  if (missingCwdCheck) {
+    await missingCwdCheck
+  }
   return withGitSpan({ args, cwd: options.cwd }, async (span) => {
     const checkoutRoutingReady = pendingWslDriveCheckoutGitRouting(args, options)
     if (checkoutRoutingReady) {
@@ -230,11 +241,6 @@ export async function gitExecFileAsyncBuffer(
       await environmentReady
     }
     resolved = resolveGitCommand(args, options, false, true)
-    const missingCwdCheck = pendingKnownMissingGitCwdCheck(resolved, options.signal, 'buffer')
-    if (missingCwdCheck) {
-      span?.setAttribute('git.known_missing_cwd', true)
-      await missingCwdCheck
-    }
     const grant = await acquireGitAdmission({
       args,
       cwd: options.cwd,
