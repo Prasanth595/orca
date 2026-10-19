@@ -27,6 +27,7 @@ import type { TerminalMouseGesture } from './mouse-click-drag'
 import type { TerminalTouchState } from './surface-touch-gestures'
 import type { TerminalTouchDispatch } from './tap-dispatch'
 import type { TerminalDocumentThemeMessage } from './terminal-theme'
+import type { TuiWheelProfile } from './tui-wheel-pacing'
 
 // Re-exported so every module that reads the scope names one import for both: the engine's shape is
 // a separate file for length, not a second place to look.
@@ -126,6 +127,16 @@ export type TerminalDocumentState = {
   pendingNormalScrollDeltaY: number
   /** `normal-buffer-smooth-scroll`: the frame request that will apply it, if one is pending. */
   normalScrollFrameId: number | null
+  /** `normal-buffer-overscroll`: how far the content is pulled past an end, as shown. */
+  overscrollY: number
+  /** `normal-buffer-overscroll`: the finger travel past the end that produced it. */
+  overscrollTravelY: number
+  /** `normal-buffer-overscroll`: the spring frame that returns it, if one is running. */
+  overscrollFrameId: number | null
+  /** `tui-wheel-pacing`: how the program turns a wheel report into rows. */
+  tuiWheelProfile: TuiWheelProfile
+  /** `tui-wheel-pacing`: when the last wheel report went to the program. */
+  lastTuiWheelReportAt: number
   /** `selection-state-and-eviction`: the menu pill element. */
   selMenu: HTMLElement | null
   /** `selection-state-and-eviction`: the pill's copy button. */
@@ -290,6 +301,11 @@ function createTerminalDocumentState(): TerminalDocumentState {
     pixelScrollActive: false,
     pendingNormalScrollDeltaY: 0,
     normalScrollFrameId: null,
+    overscrollY: 0,
+    overscrollTravelY: 0,
+    overscrollFrameId: null,
+    tuiWheelProfile: 'one-row',
+    lastTuiWheelReportAt: Number.NEGATIVE_INFINITY,
     selMenu: null,
     btnCopy: null,
     btnSelAll: null,
@@ -341,7 +357,9 @@ function createTerminalDocumentState(): TerminalDocumentState {
       lastTime: 0,
       velY: 0,
       accumDelta: 0,
+      wheelDirection: 0,
       momentumId: null,
+      pendingWheelFrameId: null,
       isPinching: false,
       scrollDragActive: false,
       pinchDist: 0,

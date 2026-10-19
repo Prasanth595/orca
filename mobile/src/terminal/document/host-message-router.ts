@@ -14,6 +14,7 @@ import { applyTerminalTheme } from './terminal-theme'
 import { init, resize, write } from './terminal-init'
 import { applyTextScale } from './text-scaling'
 import { resetWriteQueue } from './write-queue'
+import { setTuiWheelProfile } from './tui-wheel-pacing'
 
 /** One message from the host. Every field is optional because the router reads them by type. */
 export type TerminalHostMessage = {
@@ -28,6 +29,7 @@ export type TerminalHostMessage = {
   oscLinks?: unknown
   data?: string
   frame?: { width: number; height: number } | null
+  profile?: unknown
 }
 
 /** The frame React Native laid out, sent with every grid; null when absent or without a size. */
@@ -118,6 +120,8 @@ export function handleMsg(scope: TerminalDocumentScope, msg: TerminalHostMessage
       notify(scope, { type: 'selection-evicted' })
       cancelSelect(scope)
     }
+  } else if (msg.type === 'set-tui-wheel-profile') {
+    setTuiWheelProfile(scope, msg.profile)
   } else if (msg.type === 'reset-zoom') {
     applyFitScale(scope, 'reset-zoom-msg')
   } else if (msg.type === 'set-theme') {
