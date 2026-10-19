@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildRows } from './worktree-list/grouping/build-rows.test-fixture'
 import { getGroupKeysForWorktree } from '../../../../shared/sidebar-list/worktree-group-keys'
+import { getProjectGroupOccurrencePaths } from '../../../../shared/sidebar-list/project-group-sections'
 import { repo, worktree, repoMap } from './worktree-list-groups-test-fixtures'
 import type { FolderWorkspace } from '../../../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
@@ -69,6 +70,61 @@ describe('project groups', () => {
     expect(rows.find((row) => row.type === 'item')).toMatchObject({
       type: 'item',
       groupDepth: 2
+    })
+  })
+
+  it('keeps every group visible when same-id copies from two hosts close a parent loop', () => {
+    const group: ProjectGroup = {
+      id: 'group-x',
+      name: 'X',
+      parentPath: null,
+      parentGroupId: null,
+      createdFrom: 'manual',
+      tabOrder: 0,
+      isCollapsed: false,
+      color: null,
+      createdAt: 1,
+      updatedAt: 1
+    }
+    // Each host is acyclic on its own; the drawn copies (Local X, Remote Y) loop X -> Y -> X.
+    const groups: ProjectGroup[] = [
+      { ...group, name: 'Local X', parentGroupId: 'group-y', executionHostId: 'local' },
+      { ...group, id: 'group-y', name: 'Local Y', executionHostId: 'local' },
+      {
+        ...group,
+        id: 'group-y',
+        name: 'Remote Y',
+        parentGroupId: 'group-x',
+        executionHostId: 'runtime:env-1'
+      }
+    ]
+
+    const rows = buildRows(
+      'repo',
+      [],
+      new Map(),
+      null,
+      new Set(),
+      new Map(),
+      undefined,
+      'manual',
+      undefined,
+      undefined,
+      false,
+      undefined,
+      groups
+    )
+
+    expect(
+      rows.flatMap((row) => (row.type === 'header' ? [[row.label, row.projectGroupDepth]] : []))
+    ).toEqual([
+      ['Local X', 0],
+      ['Remote Y', 1]
+    ])
+    // Reveal walks the same parents the rows were drawn with.
+    expect(getProjectGroupOccurrencePaths(groups).get('group-y')).toEqual({
+      key: 'project-group:group-y',
+      parent: { key: 'project-group:group-x', parent: undefined }
     })
   })
 

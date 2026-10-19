@@ -5,10 +5,14 @@ import {
 } from './folder-workspace-lanes'
 import type { ProjectGroup } from '../project-group-types'
 import type { ProjectOrderBy } from '../ui-chrome-types'
-import { getDistinctProjectGroups, getEffectiveProjectGroupManualRank } from '../project-groups'
+import {
+  breakProjectGroupParentCycles,
+  compareProjectGroupSiblings,
+  getDistinctProjectGroups,
+  getEffectiveProjectGroupManualRank
+} from '../project-groups'
 import { getProjectGroupHeaderKey } from './group-keys'
 import { appendOrderedGroups } from './group-sections'
-import { compareCodePoints, compareSidebarText } from './text-order'
 import type { SectionAppendContext } from './group-sections'
 import type { OrderedGroupEntry } from './worktree-group-entry'
 import {
@@ -75,23 +79,17 @@ export function appendProjectGroupSections(
       compareFolderWorkspacesForDisplay(left.folderWorkspace, right.folderWorkspace)
     )
   }
+  const parentIdByGroupId = getDrawnProjectGroupParentIds(projectGroups)
   const childGroupsByParentId = new Map<string | null, ProjectGroup[]>()
   // Why distinct: membership is id-keyed, so a same-id copy's header would sit empty (#30045).
   for (const group of getDistinctProjectGroups(projectGroups)) {
-    const parentId =
-      group.parentGroupId && projectGroupsById.has(group.parentGroupId) ? group.parentGroupId : null
+    const parentId = parentIdByGroupId.get(group.id) ?? null
     const children = childGroupsByParentId.get(parentId) ?? []
     children.push(group)
     childGroupsByParentId.set(parentId, children)
   }
   for (const groups of childGroupsByParentId.values()) {
-    groups.sort(
-      (left, right) =>
-        left.tabOrder - right.tabOrder ||
-        compareSidebarText(left.name, right.name) ||
-        compareCodePoints(left.executionHostId ?? '', right.executionHostId ?? '') ||
-        compareCodePoints(left.id, right.id)
-    )
+    groups.sort(compareProjectGroupSiblings)
   }
 
   const getProjectGroupSubtreeCount = (groupId: string): number => {
@@ -149,26 +147,41 @@ export function appendProjectGroupSections(
   )
 }
 
+/** Parent each drawn group sits under; missing parents make roots. */
+function getDrawnProjectGroupParentIds(
+  projectGroups: readonly ProjectGroup[]
+): Map<string, string | null> {
+  const groups = getDistinctProjectGroups(projectGroups).sort(compareProjectGroupSiblings)
+  const groupIds = new Set(groups.map((group) => group.id))
+  const links = groups.map((group) => ({
+    id: group.id,
+    parentGroupId:
+      group.parentGroupId && groupIds.has(group.parentGroupId) ? group.parentGroupId : null
+  }))
+  // Why: each host's catalog is acyclic, but same-id copies from two hosts can still close a loop.
+  breakProjectGroupParentCycles(links)
+  return new Map(links.map((link) => [link.id, link.parentGroupId]))
+}
+
 /** The same group parents used by section emission, including missing-parent roots. */
 export function getProjectGroupOccurrencePaths(projectGroups: readonly ProjectGroup[]) {
-  const groupsById = new Map(projectGroups.map((group) => [group.id, group]))
+  const parentIdByGroupId = getDrawnProjectGroupParentIds(projectGroups)
   const paths = new Map<string, OccurrenceSectionPath>()
-  for (const group of getDistinctProjectGroups(projectGroups)) {
-    const pending: ProjectGroup[] = []
-    const seen = new Set<string>()
-    let current: ProjectGroup | undefined = group
-    while (current && !paths.has(current.id) && !seen.has(current.id)) {
-      seen.add(current.id)
-      pending.push(current)
-      current = current.parentGroupId ? groupsById.get(current.parentGroupId) : undefined
+  const getPath = (groupId: string): OccurrenceSectionPath => {
+    const existing = paths.get(groupId)
+    if (existing) {
+      return existing
     }
-    let parent = current ? paths.get(current.id) : undefined
-    for (let index = pending.length - 1; index >= 0; index -= 1) {
-      const entry = pending[index]
-      const path: OccurrenceSectionPath = { key: getProjectGroupHeaderKey(entry.id), parent }
-      paths.set(entry.id, path)
-      parent = path
+    const parentId = parentIdByGroupId.get(groupId)
+    const path: OccurrenceSectionPath = {
+      key: getProjectGroupHeaderKey(groupId),
+      parent: parentId ? getPath(parentId) : undefined
     }
+    paths.set(groupId, path)
+    return path
+  }
+  for (const groupId of parentIdByGroupId.keys()) {
+    getPath(groupId)
   }
   return paths
 }
