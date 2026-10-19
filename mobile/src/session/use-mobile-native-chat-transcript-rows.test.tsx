@@ -106,4 +106,25 @@ describe('how the structured lane draws its rows, as desktop does', () => {
     act(() => renderer!.root.findByType(Result).props.disclosure.onToggleTurn('u1'))
     expect(read().some((row) => row.foldedAway)).toBe(false)
   })
+  it('opens settled grouped work through the Process control without duplicating members', () => {
+    const messages = [userMessage('u1'), toolRow('a1'), thought('r1'), toolRow('a2'), answer('a3')]
+    const props = {
+      messages,
+      enabled: true,
+      isWorking: false,
+      settledTurns: new Map([['u1', { startedAt: 0, workedSeconds: 3 }]])
+    }
+    act(() => {
+      renderer = create(createElement(Harness, props))
+    })
+    const read = () => renderer!.root.findByType(Result).props.disclosure
+    expect(read().listMessages.map((row: NativeChatMessage) => row.id)).toEqual(['u1', 'a3'])
+    act(() => renderer!.update(createElement(Harness, { ...props, processExpanded: true })))
+    const opened = read()
+    expect(opened.listMessages).toEqual(messages)
+    expect(opened.resolveRow(1, messages[1]!).workRun).toEqual(messages.slice(1, 4))
+    expect(opened.resolveRow(2, messages[2]!).joinsWorkRun).toBe(true)
+    expect(opened.resolveRow(1, messages[1]!).processHidden).toBe(false)
+    expect(opened.resolveRow(4, messages[4]!).finalReply).toBe(true)
+  })
 })

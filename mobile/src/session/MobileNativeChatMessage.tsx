@@ -48,6 +48,8 @@ import { Prose } from './MobileNativeChatProse'
 function MobileNativeChatMessageImpl({
   message,
   mayStillGrow = false,
+  finalReply = false,
+  processHidden = false,
   toolsExpanded = false,
   previousTodoWrite,
   previousUpdatePlan,
@@ -78,6 +80,8 @@ function MobileNativeChatMessageImpl({
 }: {
   message: NativeChatMessage
   /** The newest assistant row of a live turn with no prompt open: its last text may still grow. */
+  finalReply?: boolean
+  processHidden?: boolean
   mayStillGrow?: boolean
   toolsExpanded?: boolean
   /** The last plan each task-list tool wrote before this row, so an update reads as its changes. */
@@ -205,8 +209,7 @@ function MobileNativeChatMessageImpl({
       onToggleExpanded={turnKey && onToggleTurn ? () => onToggleTurn(turnKey) : undefined}
     />
   ) : null
-  // A receipt outlives the fold, as on desktop: it is the record of what the reader answered.
-  if (joinsWorkRun || (foldedAway && !toolsExpanded && !receipt)) {
+  if (joinsWorkRun || (processHidden && !receipt) || (foldedAway && !toolsExpanded && !receipt)) {
     return <>{statusRow}</>
   }
   if (receipt) {
@@ -252,7 +255,8 @@ function MobileNativeChatMessageImpl({
     )
   }
   const isChatTurn = message.role === 'user' || message.role === 'assistant'
-  const copyText = isChatTurn ? nativeChatMessagePlainText(message) : ''
+  const copyText =
+    finalReply && message.role === 'assistant' ? nativeChatMessagePlainText(message) : ''
   const proseRow = (block: NativeChatBlock, index: number, text: string, revealing = false) =>
     isSubagentGroupBlock(block) && isRenderableSubagentGroup(block) ? (
       <MobileNativeChatSubagentGroup
