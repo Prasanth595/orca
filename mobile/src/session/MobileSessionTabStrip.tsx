@@ -9,6 +9,7 @@ import {
 } from './mobile-terminal-tab-agent'
 import { colors } from '../theme/mobile-theme'
 import { QuickCommandsTabButton } from './QuickCommandsTabButton'
+import { resolveTabStripTapOffset } from './tab-strip-scroll'
 import { styles } from './mobile-session-styles'
 import { useKeyboardPersistingTaps } from '../platform/keyboard-persisting-taps'
 import type { MobileSessionController } from './use-mobile-session-controller'
@@ -99,7 +100,21 @@ export function MobileSessionTabStrip({
                 scrollActiveTabIntoView(t.id, false)
               }
             }}
-            onPress={() => switchSessionTab(t)}
+            onPress={() => {
+              const nextOffset = resolveTabStripTapOffset({
+                tabId: t.id,
+                tabs: visibleTabs,
+                layouts: tabLayoutsRef.current,
+                viewportWidth: tabStripViewportWidthRef.current,
+                contentWidth: tabStripContentWidthRef.current,
+                currentOffset: tabStripOffsetRef.current
+              })
+              if (nextOffset !== tabStripOffsetRef.current) {
+                tabStripOffsetRef.current = nextOffset
+                tabStripRef.current?.scrollTo({ x: nextOffset, animated: true })
+              }
+              switchSessionTab(t)
+            }}
             onLongPress={() => {
               triggerMediumImpact()
               openSessionTabActionSheetAfterKeyboardDismiss(t)
