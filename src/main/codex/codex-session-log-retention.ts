@@ -151,7 +151,7 @@ async function isPublished(publishedPath: string): Promise<boolean> {
 
 /** Only ENOENT means the directory is simply not there; every other errno is a real failure. */
 function isDirectoryAbsence(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException | null)?.code === 'ENOENT'
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
 }
 
 async function collectRollouts(
