@@ -52,6 +52,14 @@ No tab is open in the current worktree. Open one with `orca tab create --url ...
 - Close worktrees you're not actively using. Each worktree keeps file watchers alive.
 - Split layouts with many browser tabs are the biggest RAM users — close browsers you don't need.
 
+## Windows: RAM disappears but no app is using it
+
+Orca workloads start many short-lived processes (hooks, `git status` polling, agent CLIs). If a buggy kernel driver keeps a reference to every process that exits, exited processes are never freed: RAM drains into kernel memory that Task Manager can't attribute to any app, and starting new processes gets slower. Orca is usually the first thing blamed, because it creates the most processes.
+
+- **Quick check:** Task Manager → Details → **PID** column. PIDs in the millions (normally they stay in the tens of thousands) mean exited processes are piling up. In [RAMMap](https://learn.microsoft.com/en-us/sysinternals/downloads/rammap) it shows as a huge **Page Table** (normally a few hundred MB).
+- **One known cause:** the AMD integrated-GPU driver `amdkmdag.sys` from Adrenalin 24.1.1 — see [#28293](https://github.com/stablyai/orca/issues/28293) for the diagnosis and check scripts. If a discrete GPU drives all displays, disabling **AMD Radeon(TM) Graphics** in Device Manager → Display adapters stops the leak; otherwise try a newer AMD driver and re-check.
+- **Reclaim the memory** with **Restart**, not Shut down — Fast Startup preserves kernel state across a shutdown, so the leaked memory survives it.
+
 ## GitHub PR panel / checks / Tasks errors
 
 Rate limits, bad `gh` auth, missing scopes, and repo access issues all show up in Source Control and the PR Checks panel. See **[Troubleshooting GitHub errors](/docs/github-errors)** for the full matrix (including why **GitHub API Budget** in Settings can look fine while REST is still blocked).
