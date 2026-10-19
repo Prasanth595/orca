@@ -8,6 +8,7 @@ import {
 } from '../../runtime/runtime-compatibility-test-fixture'
 import { clearRuntimeCompatibilityCacheForTests } from '../../runtime/runtime-rpc-client'
 import { createTestStore } from './store-test-helpers'
+import { createGlobalSettingsFixture } from '../../../../shared/global-settings-test-fixture'
 
 const folderScanGroup: ProjectGroup = {
   id: 'group-1',
@@ -81,7 +82,7 @@ describe('project group mutations route to the owning host', () => {
     }
     const store = createTestStore()
     store.setState({
-      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: null },
+      settings: createGlobalSettingsFixture({ activeRuntimeEnvironmentId: null }),
       repos: [sourceRepo],
       projectGroups: [destinationGroup]
     })
@@ -100,7 +101,7 @@ describe('project group mutations route to the owning host', () => {
     )
     const store = createTestStore()
     store.setState({
-      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: null },
+      settings: createGlobalSettingsFixture({ activeRuntimeEnvironmentId: null }),
       projectGroups: [runtimeGroup]
     })
 
@@ -125,7 +126,7 @@ describe('project group mutations route to the owning host', () => {
     projectGroupsDelete.mockResolvedValue(true)
     const store = createTestStore()
     store.setState({
-      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: 'env-1' },
+      settings: createGlobalSettingsFixture({ activeRuntimeEnvironmentId: 'env-1' }),
       projectGroups: [{ ...folderScanGroup, executionHostId: 'local' }]
     })
 
@@ -140,7 +141,7 @@ describe('project group mutations route to the owning host', () => {
     projectGroupsDelete.mockResolvedValue(true)
     const store = createTestStore()
     store.setState({
-      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: 'env-1' },
+      settings: createGlobalSettingsFixture({ activeRuntimeEnvironmentId: 'env-1' }),
       projectGroups: [{ ...folderScanGroup, connectionId: 'conn-1' }]
     })
 
@@ -154,7 +155,7 @@ describe('project group mutations route to the owning host', () => {
     runtimeEnvironmentCall.mockResolvedValue(runtimeRpcResponse({ deleted: true }))
     const store = createTestStore()
     store.setState({
-      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: null },
+      settings: createGlobalSettingsFixture({ activeRuntimeEnvironmentId: null }),
       projectGroups: [
         { ...folderScanGroup, executionHostId: 'local' },
         { ...folderScanGroup, executionHostId: 'runtime:env-1' }
@@ -185,7 +186,7 @@ describe('project group mutations route to the owning host', () => {
     const localGroup = { ...folderScanGroup, executionHostId: 'local' as const }
     const store = createTestStore()
     store.setState({
-      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: null },
+      settings: createGlobalSettingsFixture({ activeRuntimeEnvironmentId: null }),
       projectGroups: [localGroup]
     })
 
@@ -207,7 +208,7 @@ describe('project group mutations route to the owning host', () => {
     projectGroupsDelete.mockResolvedValue(true)
     const store = createTestStore()
     store.setState({
-      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: null },
+      settings: createGlobalSettingsFixture({ activeRuntimeEnvironmentId: null }),
       projectGroups: [
         { ...folderScanGroup, executionHostId: 'local' },
         { ...folderScanGroup, executionHostId: 'runtime:env-1' }
@@ -227,7 +228,7 @@ describe('project group mutations route to the owning host', () => {
     runtimeEnvironmentCall.mockRejectedValue(new Error('runtime rpc timed out'))
     const store = createTestStore()
     store.setState({
-      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: null },
+      settings: createGlobalSettingsFixture({ activeRuntimeEnvironmentId: null }),
       projectGroups: [runtimeGroup],
       folderWorkspaces: [baseFolderWorkspace]
     })
@@ -254,7 +255,7 @@ describe('project group state cascades stay scoped to the owner host', () => {
     }
     const store = createTestStore()
     store.setState({
-      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: null },
+      settings: createGlobalSettingsFixture({ activeRuntimeEnvironmentId: null }),
       projectGroups: [
         { ...folderScanGroup, executionHostId: 'local' },
         { ...folderScanGroup, name: 'Remote projects', executionHostId: 'runtime:env-1' },
@@ -304,7 +305,7 @@ describe('project group state cascades stay scoped to the owner host', () => {
     })
     const store = createTestStore()
     store.setState({
-      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: null },
+      settings: createGlobalSettingsFixture({ activeRuntimeEnvironmentId: null }),
       projectGroups: [
         { ...folderScanGroup, executionHostId: 'local' },
         { ...folderScanGroup, name: 'Remote projects', executionHostId: 'runtime:env-1' }
@@ -339,7 +340,7 @@ describe('project group state cascades stay scoped to the owner host', () => {
     })
     const store = createTestStore()
     store.setState({
-      settings: { ...store.getState().settings, activeRuntimeEnvironmentId: null },
+      settings: createGlobalSettingsFixture({ activeRuntimeEnvironmentId: null }),
       projectGroups: [
         { ...folderScanGroup, executionHostId: 'local' },
         { ...folderScanGroup, executionHostId: 'runtime:env-1' }
