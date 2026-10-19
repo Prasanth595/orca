@@ -1,4 +1,5 @@
 import type { ConnectConfig } from 'ssh2'
+import { gzipSync } from 'node:zlib'
 import type { SshTarget, SshConnectionState } from '../../shared/ssh-types'
 import type { SshResolvedConfig } from './config/ssh-g-config-resolution'
 import {
@@ -128,6 +129,7 @@ export function shellEscape(s: string): string {
 }
 
 const REMOTE_COMMAND_CHUNK_MAX_BYTES = 1_024
+const REMOTE_COMMAND_COMPRESSION_THRESHOLD_BYTES = 8_000
 const REMOTE_COMMAND_PRINTF_ESCAPED_BYTES = new Set([0x21, 0x27, 0x5c])
 
 function encodeRemoteCommandForPrintf(command: string): string[] {
@@ -160,11 +162,23 @@ export function wrapRemoteCommandForPosixShell(command: string): string {
   // Why: csh/tcsh split multiline SSH exec strings before /bin/sh sees them.
   // POSIX printf rebuilds bounded argument chunks without consuming relay stdin.
   const encodedChunks = encodeRemoteCommandForPrintf(command)
-  const decodeAndRun =
-    'decoded=$(printf %b "$@" && printf _) || exit $?; ' +
-    'decoded=${decoded%_}; exec /bin/sh -c "$decoded"'
+  const runDecoded = 'decoded=${decoded%_}; exec /bin/sh -c "$decoded"'
+  const decodeAndRun = `decoded=$(printf %b "$@" && printf _) || exit $?; ${runDecoded}`
   const chunkArguments = encodedChunks.map(shellEscape).join(' ')
-  return `exec /bin/sh -c ${shellEscape(decodeAndRun)} orca-command ${chunkArguments}`
+  const wrapped = `exec /bin/sh -c ${shellEscape(decodeAndRun)} orca-command ${chunkArguments}`
+  if (Buffer.byteLength(wrapped) <= REMOTE_COMMAND_COMPRESSION_THRESHOLD_BYTES) {
+    return wrapped
+  }
+
+  // Why: SSH gateways can truncate long exec requests, including activation's snapshot scripts.
+  const compressed = gzipSync(Buffer.from(command), { level: 9 }).toString('base64')
+  const compressedArguments = encodeRemoteCommandForPrintf(compressed).map(shellEscape).join(' ')
+  // Keep stdin for relay/upload bytes, and only execute after gzip validates the whole script.
+  const decompressAndRun = `decoded=$(printf %s "$@" | base64 -d | gzip -dc && printf _) || exit $?; ${runDecoded}`
+  const compressedWrapped = `exec /bin/sh -c ${shellEscape(decompressAndRun)} orca-command ${compressedArguments}`
+  return Buffer.byteLength(compressedWrapped) < Buffer.byteLength(wrapped)
+    ? compressedWrapped
+    : wrapped
 }
 
 export type SshExecOptions = {
