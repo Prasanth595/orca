@@ -15,7 +15,6 @@ import {
   NATIVE_CHAT_TOOL_ROW_VERB_COPY,
   nativeChatToolLineLabel
 } from '../../../src/shared/native-chat-tool-line-label'
-import { truncateToolDetail } from '../../../src/shared/native-chat-tool-summary'
 import {
   isToolCallBlock,
   type NativeChatToolCallBlock,
@@ -27,6 +26,7 @@ import { openExternalLink } from '../platform/external-link'
 import { colors } from '../theme/mobile-theme'
 import { highlightMobileCode } from './mobile-file-syntax'
 import { MobileNativeChatToolGlyph } from './MobileNativeChatToolIcon'
+import { MobileNativeChatToolOutput } from './MobileNativeChatFullContent'
 import { useMobileNativeChatOpenedDetail } from './mobile-native-chat-opened-detail'
 import { useMobileNativeChatDisclosure } from './mobile-native-chat-disclosure-store'
 import { toolStyles as styles, toolType } from './mobile-native-chat-tool-styles'
@@ -130,20 +130,7 @@ function ToolLineDetail({
           </Text>
         </ScrollView>
       ) : null}
-      {body ? (
-        <ScrollView
-          style={[styles.codeBox, styles.codeScroll]}
-          nestedScrollEnabled
-          keyboardShouldPersistTaps="handled"
-        >
-          <Text
-            selectable={INLINE_TEXT_SELECTION}
-            style={[styles.codeText, type, body.isError && styles.errorText]}
-          >
-            {truncateToolDetail(body.output)}
-          </Text>
-        </ScrollView>
-      ) : null}
+      {body ? <MobileNativeChatToolOutput body={body} type={type} /> : null}
     </View>
   )
 }

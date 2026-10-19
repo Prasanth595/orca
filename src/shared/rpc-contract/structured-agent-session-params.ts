@@ -277,6 +277,7 @@ export const SetOptionParams = z
   .strict()
 
 export const OptionsParams = z.object({ sessionId: SessionId }).strict()
+export const ItemParams = OptionsParams.extend({ itemId: z.string().min(1) }).strict()
 export const SleepWorkspaceParams = z.object({ workspaceId: z.string().min(1) }).strict()
 export const AcknowledgeAttentionParams = OptionsParams.extend({ observedCursor: JournalCursor })
 
