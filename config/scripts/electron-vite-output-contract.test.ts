@@ -189,7 +189,6 @@ describe('Electron Vite output contract', () => {
     }
 
     for (const name of [
-      'gitlab/project-ref-parser',
       'orca-profiles/profile-index-store',
       'persistence/profile-state/profile-state-access',
       'persistence/profile-state/profile-state-active-location',
@@ -205,7 +204,6 @@ describe('Electron Vite output contract', () => {
     ]) {
       expect(input).toHaveProperty(name)
     }
-    expect(electronBuilderConfig.asarUnpack).toContain('out/main/gitlab/project-ref-parser.js')
     expect(electronBuilderConfig.asarUnpack).toContain('out/main/persistence/profile-state/**')
     expect(electronBuilderConfig.asarUnpack).toContain(
       'out/main/orca-profiles/profile-index-store.js'

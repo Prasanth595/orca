@@ -33,7 +33,7 @@ export function TaskPageGitHubIssueDialog({
   const {
     setIssueSourcePreference,
     submitShortcutLabel,
-    selectedRepos,
+    githubTaskRepos,
     perRepoSourceState,
     newIssueOpen,
     setNewIssueOpen,
@@ -128,7 +128,7 @@ export function TaskPageGitHubIssueDialog({
           })()}
         </DialogHeader>
         <div className="flex flex-col gap-3">
-          {selectedRepos.length > 1 ? (
+          {githubTaskRepos.length > 1 ? (
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-medium text-muted-foreground">
                 {translate('auto.components.TaskPage.00022ec0ba', 'Project')}
@@ -148,7 +148,7 @@ export function TaskPageGitHubIssueDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {selectedRepos.map((r) => (
+                  {githubTaskRepos.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
                       <RepoBadgeLabel name={r.displayName} color={r.badgeColor} />
                     </SelectItem>
