@@ -46,8 +46,10 @@ export function getPiSubagentSnapshotSourceLines(): string[] {
     `    const agentType = subagentPreview(detail?.agentType, ${AGENT_TYPE_MAX_LENGTH})`,
     `    const description = subagentPreview(detail?.description, ${AGENT_STATUS_TOOL_INPUT_MAX_LENGTH})`,
     "    const subagent = { id, state: 'working', startedAt: detail?.startedAt ?? 0, ...(agentType ? { agentType } : {}), ...(description ? { description } : {}) }",
-    '    bytes += Buffer.byteLength(JSON.stringify(subagent)) + (subagents.length > 0 ? 1 : 0)',
-    '    if (bytes > byteBudget) break',
+    '    const rowBytes = Buffer.byteLength(JSON.stringify(subagent)) + (subagents.length > 0 ? 1 : 0)',
+    // A row that doesn't fit is skipped, not a stop: a later, shorter row may still fit.
+    '    if (bytes + rowBytes > byteBudget) continue',
+    '    bytes += rowBytes',
     '    subagents.push(subagent)',
     '  }',
     '  return subagents.length > 0 ? { subagents } : {}',

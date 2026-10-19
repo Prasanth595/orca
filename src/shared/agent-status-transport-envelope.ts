@@ -9,8 +9,9 @@ import {
 } from './agent-status-store-codec'
 import { assertJsonTextStructureWithinLimits } from './json-text-structure-limit'
 
+// Why: the store has no size limit, so only nesting is bounded; any envelope it can serialize must parse.
 const ENVELOPE_STRUCTURE_LIMITS = {
-  structuralTokens: 512 * 1024,
+  structuralTokens: Number.MAX_SAFE_INTEGER,
   nestingDepth: 40
 } as const
 
