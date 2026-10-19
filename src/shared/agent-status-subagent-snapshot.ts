@@ -24,7 +24,7 @@ export type AgentSubagentSnapshot = {
   startedAt: number
 }
 
-const AGENT_SUBAGENT_ID_MAX_LENGTH = 64
+export const AGENT_SUBAGENT_ID_MAX_LENGTH = 64
 
 function normalizeSubagentSnapshot(
   value: unknown,
