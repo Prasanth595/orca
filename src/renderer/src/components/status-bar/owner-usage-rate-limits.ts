@@ -40,7 +40,8 @@ const USAGE_PROVIDER_IDS: Record<UsageProviderKey, ProviderRateLimits['provider'
   minimax: 'minimax',
   grok: 'grok',
   cursor: 'cursor',
-  zcode: 'zcode'
+  zcode: 'zcode',
+  commandCode: 'command-code'
 }
 
 // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the keys of a Record<UsageProviderKey, …>.
@@ -82,6 +83,7 @@ function adoptRemoteRateLimits(remote: RateLimitState): RateLimitState {
     opencodeGoApiKeyConfigured: partial.opencodeGoApiKeyConfigured === true,
     grokAuthConfigured: partial.grokAuthConfigured === true,
     cursorAuthConfigured: partial.cursorAuthConfigured === true,
+    commandCodeAuthConfigured: partial.commandCodeAuthConfigured === true,
     zcodePlanApiKeyConfigured: partial.zcodePlanApiKeyConfigured === true,
     claudeTarget: partial.claudeTarget ?? { runtime: 'host', wslDistro: null },
     codexTarget: partial.codexTarget ?? { runtime: 'host', wslDistro: null },

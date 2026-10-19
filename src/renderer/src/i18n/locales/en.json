@@ -284,7 +284,8 @@
         "antigravityToggleDescription": "Show Antigravity subscription usage for the active workspace.",
         "grokToggleDescription": "Show Grok subscription credit usage when signed in via Grok CLI.",
         "cursorToggleDescription": "Show Cursor plan usage when signed in through cursor-agent or Cursor IDE.",
-        "zcodeToggleDescription": "Show ZCode Coding Plan quota usage."
+        "zcodeToggleDescription": "Show ZCode Coding Plan quota usage.",
+        "commandCodeToggleDescription": "Show Command Code credits and usage windows."
       },
       "menuBarIcon": {
         "title": "Show Menu Bar Icon",
@@ -4112,7 +4113,8 @@
             "codexSignInError": "Codex sign-in failed. Please try again.",
             "cursorUsageMenu": "Cursor Usage",
             "hiddenUsageProviders": "Also: {{value0}}",
-            "zcodeUsageMenu": "ZCode Usage"
+            "zcodeUsageMenu": "ZCode Usage",
+            "commandCodeUsageMenu": "Command Code Usage"
           },
           "StatusBarUsageEmptyCta": {
             "828c764a79": "Connect an account",
@@ -4342,6 +4344,13 @@
               "expired": {
                 "label": "Sign-in expired",
                 "message": "Claude usage has expired. Start Claude in this account to refresh it."
+              }
+            },
+            "commandCode": {
+              "credits": "Credits",
+              "expired": {
+                "label": "Sign-in expired",
+                "message": "Run cmd login in a terminal on the computer running Orca, then retry usage."
               }
             }
           },
@@ -9515,6 +9524,16 @@
                 "codingPlan": "coding plan",
                 "rateLimit": "rate limit"
               }
+            },
+            "commandCode": {
+              "title": "Command Code",
+              "description": "Credits, plan usage windows, and the renewal date for your Command Code CLI sign-in.",
+              "kw": {
+                "commandCode": "command code",
+                "credits": "credits",
+                "balance": "balance",
+                "cmd": "cmd"
+              }
             }
           }
         },
@@ -9791,7 +9810,11 @@
               "kw": {
                 "cursor": "cursor"
               }
-            }
+            },
+            "commandCodeUsageTitle": "Command Code Usage",
+            "commandCodeUsageDescription": "Show Command Code credits and usage windows in the status bar.",
+            "commandCode": "command code",
+            "commandCodeCredits": "credits"
           }
         },
         "auto": {
@@ -12935,6 +12958,32 @@
           "submit": "Re-pair",
           "success": "Re-paired with {{name}}",
           "failed": "Re-pair failed"
+        },
+        "CommandCodeAccountsSection": {
+          "window": {
+            "session": "5-hour",
+            "weekly": "Weekly",
+            "monthly": "Monthly"
+          },
+          "title": "Command Code",
+          "subtitle": "Shows credits, plan usage windows, and the renewal date from your Command Code CLI sign-in.",
+          "usagePage": "Usage page",
+          "signedIn": "Signed in",
+          "signedInHint": "Orca reads the Command Code login the CLI stored on this machine (COMMAND_CODE_API_KEY, else ~/.commandcode/auth.json). Orca keeps the key in the main process and sends it to the Command Code API for usage requests.",
+          "notSignedIn": "Not signed in",
+          "notSignedInHint": "In a terminal, run cmd login, then click Refresh usage here.",
+          "refresh": "Refresh usage",
+          "usageTitle": "Credits and usage",
+          "usageDescription": "Same figures as the /usage overlay in the Command Code CLI.",
+          "creditsLeft": "{{value0}} credits available",
+          "renews": "Renews {{value0}}",
+          "plan": "Plan: {{value0}}"
+        },
+        "providerUsageWindows": {
+          "session": "5 hours",
+          "weekly": "Weekly",
+          "monthly": "Monthly",
+          "resetIn": " — resets in {{value0}}"
         }
       },
       "right": {

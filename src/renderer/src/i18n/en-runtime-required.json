@@ -1,9 +1,4 @@
 {
-  "accounts": {
-    "claude": {
-      "profileSwitching": "Switching applies to the next Claude you start in any tab."
-    }
-  },
   "agentsSidebarIntro": {
     "migrated": {
       "action": "Open Agents"
@@ -1602,7 +1597,8 @@
           "e2b0ee267f": "stale"
         },
         "ZcodePlanAccountsSection": {
-          "keyRequired": "GLM Coding Plan API key is required."
+          "keyRequired": "GLM Coding Plan API key is required.",
+          "resetIn": " — resets in {{value0}}"
         },
         "accounts": {
           "search": {
@@ -2937,6 +2933,7 @@
         "commandAfterAnswer": "Answer the agent's question or approval, then run /{{command}}.",
         "commandRefused": "This command didn't run.",
         "commandRefusedTryAgain": "This command didn't run. Try it again.",
+        "commandUnavailable": "This command isn't available in {{agent}} chats, so it was not sent.",
         "compactionFailed": "Compaction failed.",
         "compactionFailedQuoted": "Compaction failed: {{detail}}.",
         "compactionUnconfirmed": "Compaction completion is unconfirmed.",
@@ -2946,7 +2943,6 @@
         "couldNotStopTheAgent": "Couldn't stop the agent.",
         "editSavedArguments": "Edit them in Settings > Agents > Arguments.",
         "emptyMessage": "This message is empty, so it was not sent.",
-        "commandUnavailable": "This command isn't available in {{agent}} chats, so it was not sent.",
         "historyInOtherAccount": "This chat's history is in another Claude account. Switch back to that account to continue it.",
         "historyTooLarge": "This conversation's history is too large to restore here.",
         "hostFault": "Orca ran into a problem, so this didn't go through.",
