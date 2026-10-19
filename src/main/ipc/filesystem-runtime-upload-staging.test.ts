@@ -20,8 +20,10 @@ const failNextHeaderRead = new Set<string>()
 vi.mock('node:fs/promises', async (importOriginal) => {
   type FsPromisesModule = typeof FsPromises
   const actual = await importOriginal<FsPromisesModule>()
-  const wrappedOpen: FsPromisesModule['open'] = async (path) => {
-    const handle = await actual.open(path)
+  // Why flags/mode are forwarded: stageFileEntry opens with O_RDONLY | O_NOFOLLOW;
+  // the mock must change only `read`, not silently drop the symlink safeguard.
+  const wrappedOpen: FsPromisesModule['open'] = async (path, flags, mode) => {
+    const handle = await actual.open(path, ...(flags !== undefined ? ([flags, mode] as const) : []))
     const marker = typeof path === 'string' ? path : ''
     if (failNextHeaderRead.has(marker)) {
       failNextHeaderRead.delete(marker)
