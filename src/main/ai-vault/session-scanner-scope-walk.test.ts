@@ -11,13 +11,13 @@ import {
   setSessionParseCacheColdTier,
   type PersistedSessionParseCacheEntry,
   storeSessionParseCacheEntry,
+  storeSessionScopeCwd,
   resetSessionParseCacheForTests
 } from './session-parse-cache-store'
 import { createSessionParseStats, parseAgentSessionFileCached } from './session-scanner-parse-cache'
 import { scanAiVaultSessions } from './session-scanner'
 import * as eventLoop from '../../shared/event-loop-yield'
 import { AI_VAULT_SCOPE_CWD_SOURCES } from './session-scope-cwd'
-import { storeSessionScopeCwd } from './session-parse-cache-store'
 import { SessionParseCacheDatabase } from './session-parse-cache-database'
 import SyncDatabase from '../sqlite/sync-database'
 import {
