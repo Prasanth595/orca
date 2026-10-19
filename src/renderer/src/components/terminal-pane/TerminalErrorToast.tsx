@@ -10,6 +10,7 @@ import {
   hasClientEnvironmentFooter,
   stripClientEnvironmentFooter
 } from '../../../../shared/client-environment-info'
+import { describeClaudePinnedLaunchError } from './claude-pinned-launch-error-copy'
 import {
   localizeTerminalSpawnHints,
   withoutTerminalSpawnIssueRequest
@@ -89,6 +90,9 @@ export function shouldOfferDaemonRestart(error: string): boolean {
 }
 
 export function isExplainedTerminalError(error: string): boolean {
+  if (describeClaudePinnedLaunchError(error)) {
+    return true
+  }
   return error
     .split('\n')
     .some(
@@ -140,6 +144,10 @@ function isSshHostStateTerminalError(error: string): boolean {
 
 /** Swaps raw daemon-boundary codes for copy a user can act on. */
 export function humanizeTerminalError(error: string): string {
+  const pinnedLaunch = describeClaudePinnedLaunchError(error)
+  if (pinnedLaunch) {
+    return pinnedLaunch.message
+  }
   if (isSshSignInRequiredTerminalError(error)) {
     return describeSshSignInRequiredTerminalError(error)
   }
@@ -204,6 +212,7 @@ export function TerminalErrorToast({
   onDismiss,
   onRestartDaemon,
   onRetry,
+  onStartOnActiveAccount,
   onOpenNewTerminal
 }: {
   error: string
@@ -212,6 +221,7 @@ export function TerminalErrorToast({
   onDismiss: () => void
   onRestartDaemon?: () => void
   onRetry?: () => Promise<boolean>
+  onStartOnActiveAccount?: () => void
   /** Leaves this pane and its saved session untouched. */
   onOpenNewTerminal?: () => void
 }): React.JSX.Element {
@@ -219,6 +229,10 @@ export function TerminalErrorToast({
   // Why: the client's OS and shell describe neither the host nor its shell, and the renderer knows neither.
   const showClientEnvironment = paneOnClient && !ssh
   const paneOwnerUnverified = isPaneOwnerUnverifiedError(error)
+  const pinnedLaunch = describeClaudePinnedLaunchError(error)
+  const showStartOnActiveAccount = Boolean(
+    pinnedLaunch?.offerActiveAccount && onStartOnActiveAccount
+  )
   const showDaemonRestart = !ssh && onRestartDaemon && shouldOfferDaemonRestart(error)
   // Restart cannot recover a session after its owning daemon exits.
   const showIssueLink =
@@ -374,6 +388,14 @@ export function TerminalErrorToast({
             {retrying
               ? translate('auto.components.terminal.pane.TerminalErrorToast.retrying', 'Retrying…')
               : translate('auto.components.terminal.pane.TerminalErrorToast.retry', 'Retry')}
+          </Button>
+        ) : null}
+        {showStartOnActiveAccount ? (
+          <Button variant="outline" size="xs" onClick={onStartOnActiveAccount} className="ml-3">
+            {translate(
+              'auto.components.terminal.pane.TerminalErrorToast.startOnActiveAccount',
+              'Start on active account'
+            )}
           </Button>
         ) : null}
         {/* Why: an owner can stay unverifiable, so Retry alone can loop forever. */}

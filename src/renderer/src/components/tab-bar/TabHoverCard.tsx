@@ -6,16 +6,18 @@ export function TabHoverCard({
   title,
   icon,
   programName,
-  description
+  description,
+  onOpenChange
 }: {
   children: ReactNode
   title: string
   icon: ReactNode
   programName: string
   description?: string
+  onOpenChange?: (open: boolean) => void
 }): React.JSX.Element {
   return (
-    <Tooltip>
+    <Tooltip onOpenChange={onOpenChange}>
       <TooltipTrigger
         asChild
         onFocus={(event) => {

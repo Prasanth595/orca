@@ -233,7 +233,8 @@ export function useTabBarCreateMenuController({
     groupId: resolvedGroupId,
     launchSource: 'tab_bar_quick_launch',
     onFocusTerminal: queueTerminalTabFocusAfterNewTabMenuClose,
-    onFocusHostTerminal: queueNewActiveTerminalFocusAfterNewTabMenuClose
+    onFocusHostTerminal: queueNewActiveTerminalFocusAfterNewTabMenuClose,
+    afterDeferredLaunch: () => runPendingNewTabMenuFocusAfterClose()
   })
   const launchAgentFromNewTabEntry = (option: TabAgentLaunchOption): void => {
     if (option.row) {
