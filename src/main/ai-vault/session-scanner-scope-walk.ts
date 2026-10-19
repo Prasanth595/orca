@@ -2,7 +2,15 @@ import { createAiVaultScopeCwdMatcher } from '../../shared/ai-vault-scope-cwd-ma
 import type { AiVaultScanIssue, AiVaultSession } from '../../shared/ai-vault-types'
 import type { ExecutionHostId } from '../../shared/execution-host'
 import { noteAiVaultScanReading } from './ai-vault-scan-progress'
-import { peekSessionParseCacheEntry } from './session-parse-cache-store'
+import { yieldToEventLoop } from '../../shared/event-loop-yield'
+import { throwIfAiVaultScanCancelled } from './ai-vault-scan-cancellation'
+import {
+  lookupSessionScopeCwds,
+  pruneSessionScopeCwds,
+  storeSessionScopeCwd,
+  type SessionScopeCwdLookup,
+  type SessionScopeCwdStamp
+} from './session-parse-cache-store'
 import type { AntigravityWorkspaceResolver } from './session-scanner-antigravity-history'
 import { parseSessionCandidates } from './session-scanner-candidate-parse'
 import { sessionSortTime } from './session-scanner-accumulator'
@@ -15,12 +23,7 @@ import type {
   SessionFileCandidate,
   SessionFileDiscovery
 } from './session-scanner-types'
-import {
-  AI_VAULT_SCOPE_CWD_SOURCES,
-  pruneTranscriptHeadCwdCache,
-  readTranscriptHeadCwd,
-  scopeWalksAgentFiles
-} from './session-scope-cwd'
+import { AI_VAULT_SCOPE_CWD_SOURCES, scopeWalksAgentFiles } from './session-scope-cwd'
 import { sidecarUnchanged } from './session-sidecar-stat'
 import { prioritizeAntigravityTranscriptCandidates } from './antigravity-transcript-candidates'
 
@@ -93,6 +96,7 @@ async function walkInScopeSessions(
   const signal = args.options.signal
   const inScope = createAiVaultScopeCwdMatcher(scopePaths)
   const candidates = walkCandidates(args, scopePaths)
+  const known = await lookupScopeCwds(candidates, signal)
   const sessions = await parseSessionCandidates({
     candidates,
     limit: args.limit,
@@ -103,7 +107,8 @@ async function walkInScopeSessions(
     antigravityWorkspaceResolver: args.antigravityWorkspaceResolver,
     signal,
     listed: false,
-    selectCandidate: (candidate) => mayBeInScope(candidate, inScope, args.platform, signal),
+    selectCandidate: (candidate) =>
+      mayBeInScope(candidate, known.get(candidate.file.path), inScope, args.platform, signal),
     admitSession: (session) => inScope(session.cwd, session.filePath)
   })
   return sessions
@@ -130,7 +135,7 @@ function walkCandidates(
     }
     all.push(...discoveryFileCandidates(discovery, files, args.options))
   }
-  pruneTranscriptHeadCwdCache(seenPaths)
+  pruneSessionScopeCwds(seenPaths)
   // Aliases collapse with the listed files still present, so a listed rollout's
   // hardlink in another Codex home is not parsed again.
   return prioritizeAntigravityTranscriptCandidates(
@@ -141,32 +146,76 @@ function walkCandidates(
   )
 }
 
-/** False only when a current parse or the transcript's opening records put it out of scope. */
+// Per lookup batch: one database round trip, then a turn for the event loop.
+const SCOPE_LOOKUP_BATCH = 500
+
+async function lookupScopeCwds(
+  candidates: readonly SessionFileCandidate[],
+  signal: AbortSignal | undefined
+): Promise<Map<string, SessionScopeCwdLookup>> {
+  const known = new Map<string, SessionScopeCwdLookup>()
+  // The Antigravity fold has no cwd until the per-scan history join runs.
+  const paths = candidates
+    .filter((candidate) => !candidate.antigravityHistoryPath)
+    .map((candidate) => candidate.file.path)
+  for (let start = 0; start < paths.length; start += SCOPE_LOOKUP_BATCH) {
+    throwIfAiVaultScanCancelled(signal)
+    for (const [path, lookup] of lookupSessionScopeCwds(
+      paths.slice(start, start + SCOPE_LOOKUP_BATCH)
+    )) {
+      known.set(path, lookup)
+    }
+    await yieldToEventLoop()
+  }
+  return known
+}
+
+/**
+ * False only when this transcript version's cwd is known to be out of scope: a
+ * parse row's cwd first, then one read without a parse. A read the agent can
+ * settle is stored, so the next scan of an unchanged file reads nothing.
+ */
 async function mayBeInScope(
   candidate: SessionFileCandidate,
+  known: SessionScopeCwdLookup | undefined,
   inScope: ReturnType<typeof createAiVaultScopeCwdMatcher>,
   platform: NodeJS.Platform,
   signal: AbortSignal | undefined
 ): Promise<boolean> {
   const { file } = candidate
-  const entry = peekSessionParseCacheEntry(file.path)
-  if (
-    // The Antigravity fold has no cwd until the per-scan history join runs.
-    !candidate.antigravityHistoryPath &&
-    entry !== undefined &&
-    entry.platform === platform &&
-    entry.mtimeMs === file.mtimeMs &&
-    (entry.sizeBytes === null ||
-      file.sizeBytes === undefined ||
-      entry.sizeBytes === file.sizeBytes) &&
-    sidecarUnchanged(entry.sidecar, file.sidecar)
-  ) {
-    return entry.session !== null && inScope(entry.session.cwd, file.path)
+  for (const stamp of [known?.parsed, known?.read]) {
+    if (stamp && stampMatchesFile(stamp, file, platform)) {
+      return stamp.cwd !== null && inScope(stamp.cwd, file.path)
+    }
   }
   const source = AI_VAULT_SCOPE_CWD_SOURCES[candidate.agent]
-  if (source.kind !== 'head') {
+  if (source.kind !== 'read' || candidate.antigravityHistoryPath) {
     return true
   }
-  const cwd = await readTranscriptHeadCwd(file, source, signal)
-  return cwd === null || inScope(cwd, file.path)
+  const read = await source.readCwd(candidate, signal)
+  if (read === null) {
+    return true
+  }
+  throwIfAiVaultScanCancelled(signal)
+  storeSessionScopeCwd(file.path, {
+    mtimeMs: file.mtimeMs,
+    sizeBytes: file.sizeBytes ?? null,
+    platform,
+    cwd: read.cwd,
+    ...(file.sidecar === undefined ? {} : { sidecar: file.sidecar })
+  })
+  return read.cwd !== null && inScope(read.cwd, file.path)
+}
+
+function stampMatchesFile(
+  stamp: SessionScopeCwdStamp,
+  file: FileWithMtime,
+  platform: NodeJS.Platform
+): boolean {
+  return (
+    stamp.platform === platform &&
+    stamp.mtimeMs === file.mtimeMs &&
+    (stamp.sizeBytes === null || file.sizeBytes === undefined || stamp.sizeBytes === file.sizeBytes) &&
+    sidecarUnchanged(stamp.sidecar, file.sidecar)
+  )
 }

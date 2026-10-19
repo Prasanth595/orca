@@ -14,7 +14,6 @@ import {
 } from './session-parse-cache-store'
 import { createSessionParseStats, parseAgentSessionFileCached } from './session-scanner-parse-cache'
 import { scanAiVaultSessions } from './session-scanner'
-import { resetTranscriptHeadCwdCacheForTests } from './session-scope-cwd'
 import {
   isolatedScanRoots,
   jsonLines,
@@ -28,7 +27,6 @@ let tempRoots: string[] = []
 afterEach(async () => {
   await Promise.all(tempRoots.map((root) => rm(root, { recursive: true, force: true })))
   tempRoots = []
-  resetTranscriptHeadCwdCacheForTests()
   resetSessionParseCacheForTests()
 })
 

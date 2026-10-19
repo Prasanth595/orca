@@ -54,12 +54,24 @@ export type PersistedSessionParseCacheEntry = Omit<
   'resume' | 'foldSession' | 'skippedRecords'
 >
 
+// A transcript version's cwd for scope membership: null means the version is
+// known to have none, so no scope holds it.
+export type SessionScopeCwdStamp = Pick<
+  PersistedSessionParseCacheEntry,
+  'mtimeMs' | 'sizeBytes' | 'platform' | 'sidecar'
+> & { cwd: string | null }
+
+// `parsed` (from a parse row) outranks `read` (learned without a parse).
+export type SessionScopeCwdLookup = { parsed?: SessionScopeCwdStamp; read?: SessionScopeCwdStamp }
+
 // The database behind this map (session-parse-cache-persistence.ts). A row the
 // map's bounds drop is read back from it rather than re-parsed.
 export type SessionParseCacheColdTier = {
   read(path: string): PersistedSessionParseCacheEntry | undefined
   stored(path: string, entry: PersistedSessionParseCacheEntry): void
   deleted(path: string): void
+  readScopeCwds?(paths: readonly string[]): Map<string, SessionScopeCwdLookup>
+  storedScopeCwd?(path: string, stamp: SessionScopeCwdStamp): void
 }
 
 const cache = new Map<string, SessionParseCacheEntry>()
@@ -70,6 +82,8 @@ const listedPaths = new Set<string>()
 // count-bounded sets.
 const unlistedPaths = new Set<string>()
 const resumePaths = new Set<string>()
+// Scope cwds learned without a parse, for the paths the latest scope walk found.
+const readScopeCwds = new Map<string, SessionScopeCwdStamp>()
 let coldTier: SessionParseCacheColdTier | null = null
 
 export function setSessionParseCacheColdTier(next: SessionParseCacheColdTier | null): void {
@@ -81,6 +95,7 @@ export function resetSessionParseCacheForTests(): void {
   listedPaths.clear()
   unlistedPaths.clear()
   resumePaths.clear()
+  readScopeCwds.clear()
   coldTier = null
 }
 
@@ -90,6 +105,7 @@ export function invalidateSessionParseCacheEntry(path: string): void {
   unlistedPaths.delete(path)
   resumePaths.delete(path)
   cache.delete(path)
+  readScopeCwds.delete(path)
   coldTier?.deleted(path)
 }
 
@@ -118,6 +134,68 @@ export function peekSessionParseCacheEntry(
   path: string
 ): PersistedSessionParseCacheEntry | undefined {
   return cache.get(path) ?? coldTier?.read(path)
+}
+
+/** Scope cwds for many paths at once: memory first, then one batched database read. */
+export function lookupSessionScopeCwds(
+  paths: readonly string[]
+): Map<string, SessionScopeCwdLookup> {
+  const found = new Map<string, SessionScopeCwdLookup>()
+  const cold: string[] = []
+  for (const path of paths) {
+    const row = cache.get(path)
+    const read = readScopeCwds.get(path)
+    if (row === undefined) {
+      cold.push(path)
+    }
+    if (row !== undefined || read !== undefined) {
+      found.set(path, {
+        ...(row === undefined ? {} : { parsed: scopeCwdStampOf(row) }),
+        ...(read === undefined ? {} : { read })
+      })
+    }
+  }
+  if (coldTier === null || cold.length === 0) {
+    return found
+  }
+  if (!coldTier.readScopeCwds) {
+    for (const path of cold) {
+      const row = coldTier.read(path)
+      if (row !== undefined) {
+        found.set(path, { ...found.get(path), parsed: scopeCwdStampOf(row) })
+      }
+    }
+    return found
+  }
+  for (const [path, stored] of coldTier.readScopeCwds(cold)) {
+    // A read cwd already in memory is at least as new as the stored one.
+    found.set(path, { ...stored, ...found.get(path) })
+  }
+  return found
+}
+
+export function storeSessionScopeCwd(path: string, stamp: SessionScopeCwdStamp): void {
+  readScopeCwds.set(path, stamp)
+  coldTier?.storedScopeCwd?.(path, stamp)
+}
+
+/** Keeps in memory only the read cwds of transcripts the latest scope walk found. */
+export function pruneSessionScopeCwds(discoveredPaths: ReadonlySet<string>): void {
+  for (const path of readScopeCwds.keys()) {
+    if (!discoveredPaths.has(path)) {
+      readScopeCwds.delete(path)
+    }
+  }
+}
+
+export function scopeCwdStampOf(entry: PersistedSessionParseCacheEntry): SessionScopeCwdStamp {
+  return {
+    mtimeMs: entry.mtimeMs,
+    sizeBytes: entry.sizeBytes,
+    platform: entry.platform,
+    cwd: entry.session?.cwd ?? null,
+    ...(entry.sidecar === undefined ? {} : { sidecar: entry.sidecar })
+  }
 }
 
 export function storeSessionParseCacheEntry(path: string, entry: SessionParseCacheEntry): void {
