@@ -1,3 +1,4 @@
+import { TERMINAL_MAILBOX_SUBSCRIPTION_CAPABILITY } from './terminal-mailbox-subscription'
 import { AGENT_SESSION_CURRENT_REQUESTS_CLIENT_CAPABILITY } from './agent-session-current-requests-capability'
 import { AI_VAULT_CHAT_FORK_SOURCE_CAPABILITY } from './ai-vault-resume-preparation'
 import { JIRA_AGENT_ACCESS_RUNTIME_CAPABILITY } from './jira-agent-capability'
@@ -177,6 +178,7 @@ export const NATIVE_REMOTE_RUNTIME_CLIENT_CAPABILITIES = [
 ] as const
 
 export const RUNTIME_CAPABILITIES = [
+  TERMINAL_MAILBOX_SUBSCRIPTION_CAPABILITY,
   AI_VAULT_CHAT_FORK_SOURCE_CAPABILITY,
   jiraDetailCapabilities.JIRA_TRANSITION_FIELDS_RUNTIME_CAPABILITY,
   JIRA_AGENT_ACCESS_RUNTIME_CAPABILITY,
