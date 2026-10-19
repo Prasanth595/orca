@@ -16,10 +16,13 @@ export function HostScreenView({ controller }: { controller: HostScreenControlle
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <HostScreenHeader controller={controller} />
+    <View style={styles.container}>
+      {/* Why: the top inset takes the header's panel colour so the status bar and header read as one band. */}
+      <SafeAreaView style={styles.topChromeSafeArea} edges={['top']}>
+        <HostScreenHeader controller={controller} />
+      </SafeAreaView>
       <HostWorkspaceList controller={controller} />
       <HostScreenOverlays controller={controller} />
-    </SafeAreaView>
+    </View>
   )
 }
