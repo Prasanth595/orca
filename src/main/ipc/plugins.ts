@@ -1,3 +1,4 @@
+import { pluginThemeSettingsAfterRemoval } from '../../shared/plugin-theme-settings'
 import { ipcMain } from 'electron'
 import { z } from 'zod'
 import type { Store } from '../persistence'
@@ -115,6 +116,14 @@ export function registerPluginHandlers(
     await pluginService.whenReady()
     return pluginService.contentPacks.languagePacks.list()
   })
+  ipcMain.handle('plugins:listThemes', async () => {
+    await pluginService.whenReady()
+    return pluginService.contentPacks.themes.list()
+  })
+  ipcMain.handle('plugins:listTerminalThemes', async () => {
+    await pluginService.whenReady()
+    return pluginService.contentPacks.terminalThemes.list()
+  })
   ipcMain.handle('plugins:consent', async (event, args: unknown) => {
     await pluginService.whenReady()
     const parsed = parsePluginConsentArgs(args)
@@ -229,7 +238,11 @@ export function registerPluginHandlers(
       (pluginKey) => pluginKey !== parsed.pluginKey
     )
     store.updateSettings(
-      { pluginConsents: consents, disabledPlugins },
+      {
+        pluginConsents: consents,
+        disabledPlugins,
+        ...pluginThemeSettingsAfterRemoval(settings, parsed.pluginKey)
+      },
       { notifyListeners: true, originWebContentsId: event.sender.id }
     )
     await pluginService.refresh()
