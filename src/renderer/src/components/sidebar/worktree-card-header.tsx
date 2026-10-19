@@ -34,7 +34,8 @@ function RepoIdentityChip({
             { value0: repo.displayName }
           )}
         >
-          <span className="inline-flex size-3 shrink-0 items-center justify-center">
+          {/* Why: emoji glyphs scale with font size (0.9em), so pin it to fit the 12px icon box. */}
+          <span className="inline-flex size-3 shrink-0 items-center justify-center text-2xs">
             {children}
           </span>
           {/* Why: the default folder icon is the same for every project, so the name tells them apart. */}
