@@ -1,5 +1,8 @@
 import type { EditorGet, EditorSet } from '../types/editor-set-get'
-import { getDiskBaselineSignature } from '../../../../../../shared/disk-baseline-signature'
+import {
+  getDiskBaselineSignature,
+  getWrittenContentDiskSignature
+} from '../../../../../../shared/disk-baseline-signature'
 import type { EditorSlice } from '../types/editor-slice'
 import { isEditorTabContentType } from '../tabs/editor-tab-content-type'
 import type { Tab } from '../../../../../../shared/tab-types'
@@ -168,7 +171,8 @@ export function createOpenFileMutations(
         if (!file || file.isDirty || file.lastKnownDiskSignature === undefined) {
           return s
         }
-        const signature = getDiskBaselineSignature(baseContent)
+        // Why written-content: the base may be text this tab just wrote rather than text read back.
+        const signature = getWrittenContentDiskSignature(baseContent)
         if (file.lastKnownDiskSignature === signature) {
           return s
         }

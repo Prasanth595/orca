@@ -54,7 +54,6 @@ function EditorPanelInner({
       ? canShowWorkspaceFileBrowserAction(s, activeWorktreeId, activeFile.filePath)
       : false
   )
-  const markFileDirty = useAppStore((s) => s.markFileDirty)
   const pendingEditorReveal = useAppStore((s) => s.pendingEditorReveal)
   // Why: background Git refreshes for other worktrees must not wake every
   // mounted Monaco/rich editor pane.
@@ -158,7 +157,8 @@ function EditorPanelInner({
 
   useMarkdownPreviewShortcut({ activeFile, panelRef, openMarkdownPreview })
 
-  const handleContentChangeForFile = useEditorContentChangeHandler({ fileContents, diffContents })
+  const { onContentChange: handleContentChangeForFile, onDirtyHint } =
+    useEditorContentChangeHandler({ fileContents, diffContents })
 
   const handleContentChange = useCallback(
     (content: string) => {
@@ -168,12 +168,8 @@ function EditorPanelInner({
   )
 
   const handleDirtyStateHint = useCallback(
-    (dirty: boolean) => {
-      if (activeFile) {
-        markFileDirty(activeFile.id, dirty)
-      }
-    },
-    [activeFile, markFileDirty]
+    (dirty: boolean) => onDirtyHint(activeFile, dirty),
+    [activeFile, onDirtyHint]
   )
 
   const { handleSave, handleSaveForFile } = useEditorPanelSave({

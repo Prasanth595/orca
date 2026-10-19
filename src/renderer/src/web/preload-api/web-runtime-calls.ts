@@ -59,8 +59,8 @@ export function assertEnvironmentPairing(selector: string, expectedRevision?: nu
   }
 }
 
-/** The connection on which each environment's runtime last answered a status probe in full. */
-const probedConnections = new Map<string, { epoch: number; runtimeId: string }>()
+/** Per client (epochs restart with each client): the connection whose runtime last answered a status probe. */
+const probedConnections = new WeakMap<object, { epoch: number; runtimeId: string }>()
 
 function responseRuntimeId(response: unknown): string | undefined {
   if (typeof response !== 'object' || response === null || !('_meta' in response)) {
@@ -80,7 +80,6 @@ function responseRuntimeId(response: unknown): string | undefined {
  * such probe, refuse so the caller re-probes.
  */
 function callPinnedToRuntime(
-  environmentId: string,
   client: ReturnType<typeof getClientForEnvironment>,
   method: string,
   params: unknown,
@@ -92,7 +91,7 @@ function callPinnedToRuntime(
     return client.call(method, params, { timeoutMs }).then((response) => {
       const runtimeId = responseRuntimeId(response)
       if (response.ok && runtimeId && client.connectionEpoch === epoch) {
-        probedConnections.set(environmentId, { epoch, runtimeId })
+        probedConnections.set(client, { epoch, runtimeId })
       }
       return response
     })
@@ -100,7 +99,7 @@ function callPinnedToRuntime(
   if (expectedEnvironmentRuntimeId === undefined) {
     return client.call(method, params, { timeoutMs })
   }
-  const probed = probedConnections.get(environmentId)
+  const probed = probedConnections.get(client)
   if (probed?.runtimeId !== expectedEnvironmentRuntimeId) {
     return Promise.reject(new Error(RUNTIME_CONNECTION_CHANGED_MESSAGE))
   }
@@ -127,7 +126,6 @@ export async function callEnvironmentEnvelope<TResult = unknown>(
       return Promise.resolve(manuallyDisconnectedResponse(environment))
     }
     return callPinnedToRuntime(
-      environment.id,
       getClientForEnvironment(environment),
       method,
       params,

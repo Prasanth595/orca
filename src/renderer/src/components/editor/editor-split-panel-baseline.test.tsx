@@ -9,9 +9,9 @@ import { __clearSelfWriteRegistryForTests } from './editor-self-write-registry'
 import {
   createEditorStore,
   createFakeEditorDisk,
-  stubEditorWindowWithDisk
+  stubEditorWindowWithDisk,
+  type FakeEditorDisk
 } from './editor-autosave-controller-test-fixture'
-import { getDiskBaselineSignature } from './diff-content-signature'
 import { useEditorContentChangeHandler } from './use-editor-content-change-handler'
 
 const mocks = vi.hoisted(() => {
@@ -33,7 +33,34 @@ vi.mock('@/store', () => {
 
 const FILE_ID = '/repo/file.ts'
 
-describe('an edit in a panel showing older content than the shared baseline', () => {
+/** One panel whose cache shows `panelShows` while disk (and the shared baseline) hold `disk`. */
+function setUp(disk: string, panelShows: string) {
+  const fakeDisk: FakeEditorDisk = stubEditorWindowWithDisk(
+    createFakeEditorDisk({ [FILE_ID]: disk })
+  )
+  const store = createEditorStore()
+  mocks.store.current = store
+  store.setState({ settings: null })
+  store.getState().openFile({
+    filePath: FILE_ID,
+    relativePath: 'file.ts',
+    worktreeId: 'wt-1',
+    language: 'typescript',
+    mode: 'edit'
+  })
+  store.getState().commitCleanDiskContent(FILE_ID, disk)
+  const panel = renderHook(() =>
+    useEditorContentChangeHandler({
+      fileContents: { [FILE_ID]: { content: panelShows, isBinary: false } },
+      diffContents: {}
+    })
+  )
+  const file = () => store.getState().openFiles.find((openFile) => openFile.id === FILE_ID) ?? null
+  const cleanupController = attachEditorAutosaveController(store)
+  return { disk: fakeDisk, store, panel, file, cleanupController }
+}
+
+describe('saves from a panel showing older text than another panel loaded', () => {
   beforeEach(() => {
     __clearSelfWriteRegistryForTests()
   })
@@ -43,38 +70,59 @@ describe('an edit in a panel showing older content than the shared baseline', ()
     mocks.store.current = null
   })
 
-  it('is guarded against the content that panel showed, not a newer load elsewhere', async () => {
-    const disk = stubEditorWindowWithDisk(createFakeEditorDisk({ [FILE_ID]: 'B' }))
-    const store = createEditorStore()
-    mocks.store.current = store
-    store.setState({ settings: null })
-    store.getState().openFile({
-      filePath: FILE_ID,
-      relativePath: 'file.ts',
-      worktreeId: 'wt-1',
-      language: 'typescript',
-      mode: 'edit'
-    })
-    // Another split panel reloaded and advanced the shared baseline to B.
-    store.getState().commitCleanDiskContent(FILE_ID, 'B')
-    // This panel still shows A from its own cache.
-    const { result } = renderHook(() =>
-      useEditorContentChangeHandler({
-        fileContents: { [FILE_ID]: { content: 'A', isBinary: false } },
-        diffContents: {}
-      })
-    )
-    const file = store.getState().openFiles.find((openFile) => openFile.id === FILE_ID) ?? null
-    result.current(file, 'A edited')
-
-    const cleanupController = attachEditorAutosaveController(store)
+  it('guards a typed edit against the text this panel showed', async () => {
+    const { disk, panel, file, cleanupController } = setUp('B', 'A')
     try {
+      panel.result.current.onContentChange(file(), 'A edited')
+
       await expect(requestEditorFileSave({ fileId: FILE_ID })).rejects.toThrow()
       expect(disk.files.get(FILE_ID)).toBe('B')
-      expect(
-        store.getState().openFiles.find((openFile) => openFile.id === FILE_ID)
-          ?.lastKnownDiskSignature
-      ).toBe(getDiskBaselineSignature('A'))
+    } finally {
+      cleanupController()
+    }
+  })
+
+  it('guards an editor that reports dirty before its content (rich markdown, notebooks)', async () => {
+    const { disk, panel, file, cleanupController } = setUp('B', 'A')
+    try {
+      panel.result.current.onDirtyHint(file(), true)
+      panel.result.current.onContentChange(file(), 'A edited')
+
+      await expect(requestEditorFileSave({ fileId: FILE_ID })).rejects.toThrow()
+      expect(disk.files.get(FILE_ID)).toBe('B')
+    } finally {
+      cleanupController()
+    }
+  })
+
+  it('writes nothing for Cmd+S in a clean panel showing older text', async () => {
+    const { disk, cleanupController } = setUp('B', 'A')
+    try {
+      await requestEditorFileSave({
+        fileId: FILE_ID,
+        fallbackContent: 'A',
+        confirmDiskOverwrite: true
+      })
+
+      expect(disk.fs.writeFile).not.toHaveBeenCalled()
+      expect(disk.files.get(FILE_ID)).toBe('B')
+    } finally {
+      cleanupController()
+    }
+  })
+
+  it('anchors a keystroke right after its own save to the written text, not the old load', async () => {
+    // The panel's cached load (P) is replaced by the save's text (S) only on the next render.
+    const { disk, panel, file, cleanupController } = setUp('P', 'P')
+    try {
+      panel.result.current.onContentChange(file(), 'S')
+      await requestEditorFileSave({ fileId: FILE_ID })
+      expect(disk.files.get(FILE_ID)).toBe('S')
+
+      panel.result.current.onContentChange(file(), 'S and more')
+      await requestEditorFileSave({ fileId: FILE_ID })
+
+      expect(disk.files.get(FILE_ID)).toBe('S and more')
     } finally {
       cleanupController()
     }

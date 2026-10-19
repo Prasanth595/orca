@@ -120,6 +120,8 @@ async function saveMobileMarkdownTab(
     const previousDraft = state.editorDrafts[freshTarget.sourceFile.id]
     const previousDirty = freshTarget.sourceFile.isDirty
     state.setEditorDraft(freshTarget.sourceFile.id, content)
+    // Why: the phone's edit is based on the disk text just verified above.
+    state.anchorEditBaseline(freshTarget.sourceFile.id, current.content)
     state.markFileDirty(freshTarget.sourceFile.id, true)
     let verified: string
     try {

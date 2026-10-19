@@ -24,7 +24,7 @@ it('does not recreate a draft when a pending editor detaches after its tab was c
     useEditorContentChangeHandler({ fileContents: {}, diffContents: {} })
   )
   act(() => useAppStore.getState().closeFile(file.id))
-  act(() => result.current(file, 'pending,cell'))
+  act(() => result.current.onContentChange(file, 'pending,cell'))
   expect(useAppStore.getState().editorDrafts[file.id]).toBeUndefined()
 })
 
@@ -40,7 +40,7 @@ it('retains a pending draft when the tab is still open but its table view detach
   const { result } = renderHook(() =>
     useEditorContentChangeHandler({ fileContents: {}, diffContents: {} })
   )
-  act(() => result.current(file, 'pending,cell'))
+  act(() => result.current.onContentChange(file, 'pending,cell'))
   expect(useAppStore.getState().editorDrafts[file.id]).toBe('pending,cell')
   expect(
     useAppStore.getState().openFiles.find((candidate) => candidate.id === file.id)?.isDirty
