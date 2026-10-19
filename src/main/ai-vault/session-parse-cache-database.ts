@@ -14,7 +14,12 @@ import type {
   SessionScopeCwdLookup,
   SessionScopeCwdStamp
 } from './session-parse-cache-store'
-import type { SessionSidecarObservation } from './session-sidecar-stat'
+import {
+  ensureScopeCwdsTable,
+  readScopeCwdRows,
+  writeScopeCwdRows
+} from './session-scope-cwds-table'
+import { parsePersistedSidecar } from './session-sidecar-stat'
 
 // Bump when the row layout or cached session semantics change; a mismatched
 // database is dropped whole.
@@ -37,24 +42,6 @@ CREATE TABLE IF NOT EXISTS rows(
 );
 CREATE INDEX IF NOT EXISTS rows_seen_at ON rows(seen_at);
 `
-// A transcript's cwd learned without a parse (its opening records, or a small
-// file its parser reads it from). Versioned apart from rows, so a reader fix
-// resets only these.
-const SCOPE_CWDS_VERSION = '1'
-const SCOPE_CWDS_SQL = `
-CREATE TABLE IF NOT EXISTS scope_cwds(
-  path TEXT PRIMARY KEY,
-  mtime_ms REAL NOT NULL,
-  size_bytes INTEGER,
-  platform TEXT NOT NULL,
-  sidecar TEXT,
-  cwd TEXT,
-  seen_at INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS scope_cwds_seen_at ON scope_cwds(seen_at);
-`
-// Keeps each IN list well under SQLite's bound-parameter limit.
-const SCOPE_LOOKUP_CHUNK = 500
 // Rows hold transcript-derived preview text; keep the directory user-only.
 const PRIVATE_DIRECTORY_MODE = 0o700
 // A ~2.3 KB row fills most of a 4 KB page; 8 KB pages fit three.
@@ -92,58 +79,11 @@ export class SessionParseCacheDatabase {
 
   /** Each path's parse-row cwd and stored scope cwd, without decoding whole sessions. */
   readScopeCwds(paths: readonly string[]): Map<string, SessionScopeCwdLookup> {
-    return this.run((db) => {
-      const found = new Map<string, SessionScopeCwdLookup>()
-      for (let start = 0; start < paths.length; start += SCOPE_LOOKUP_CHUNK) {
-        const chunk = paths.slice(start, start + SCOPE_LOOKUP_CHUNK)
-        const marks = chunk.map(() => '?').join(',')
-        for (const [table, key, cwdColumn] of [
-          ['rows', 'parsed', "json_extract(session, '$.cwd')"],
-          ['scope_cwds', 'read', 'cwd']
-        ] as const) {
-          const rows = db
-            .prepare(
-              `SELECT path, mtime_ms, size_bytes, platform, sidecar, ${cwdColumn} AS cwd FROM ${table} WHERE path IN (${marks})`
-            )
-            .all(...chunk)
-          for (const row of rows) {
-            const stamp = parseScopeCwdStamp(row)
-            if (stamp && typeof row.path === 'string') {
-              found.set(row.path, { ...found.get(row.path), [key]: stamp })
-            }
-          }
-        }
-      }
-      return found
-    }, new Map())
+    return this.run((db) => readScopeCwdRows(db, paths), new Map())
   }
 
   writeScopeCwds(rows: Iterable<[string, SessionScopeCwdStamp]>, seenAt: number): void {
-    this.run((db) => {
-      const insert = db.prepare(
-        'INSERT OR REPLACE INTO scope_cwds(path, mtime_ms, size_bytes, platform, sidecar, cwd, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      )
-      db.exec('BEGIN IMMEDIATE')
-      try {
-        for (const [path, stamp] of rows) {
-          insert.run(
-            path,
-            stamp.mtimeMs,
-            stamp.sizeBytes,
-            stamp.platform,
-            stamp.sidecar === undefined ? null : JSON.stringify(stamp.sidecar),
-            stamp.cwd,
-            seenAt
-          )
-        }
-        db.exec('COMMIT')
-      } catch (error) {
-        if (db.isTransaction) {
-          db.exec('ROLLBACK')
-        }
-        throw error
-      }
-    }, undefined)
+    this.run((db) => writeScopeCwdRows(db, rows, seenAt), undefined)
   }
 
   /**
@@ -287,39 +227,6 @@ function openDatabase(path: string): SyncDatabase {
   return db
 }
 
-function ensureScopeCwdsTable(db: SyncDatabase): void {
-  const current = db.prepare("SELECT value FROM meta WHERE key = 'scope_cwds_version'").get()
-  if (current?.value !== SCOPE_CWDS_VERSION) {
-    db.exec('DROP TABLE IF EXISTS scope_cwds')
-  }
-  db.exec(SCOPE_CWDS_SQL)
-  db.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES ('scope_cwds_version', ?)").run(
-    SCOPE_CWDS_VERSION
-  )
-}
-
-function parseScopeCwdStamp(row: Record<string, unknown>): SessionScopeCwdStamp | null {
-  const { mtime_ms: mtimeMs, size_bytes: sizeBytes, platform, cwd } = row
-  if (
-    typeof mtimeMs !== 'number' ||
-    (sizeBytes !== null && typeof sizeBytes !== 'number') ||
-    typeof platform !== 'string' ||
-    (cwd !== null && typeof cwd !== 'string')
-  ) {
-    return null
-  }
-  const sidecar =
-    typeof row.sidecar === 'string' ? parsePersistedSidecar(JSON.parse(row.sidecar)) : undefined
-  return {
-    mtimeMs,
-    sizeBytes,
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: only ever compared for equality with process.platform, so an unknown value is a miss, not a misuse.
-    platform: platform as NodeJS.Platform,
-    cwd,
-    ...(sidecar === undefined ? {} : { sidecar })
-  }
-}
-
 /** Validates one `[path, entry]` row read back from disk; null when it can't be trusted. */
 export function parsePersistedSessionParseCacheRow(
   item: unknown
@@ -357,20 +264,4 @@ export function parsePersistedSessionParseCacheRow(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-// Why: added after SCHEMA_VERSION 2 shipped, so a row an older build wrote has
-// no such field. Absent (or unreadable) means unknown, which costs one re-parse
-// of the rows that have a sibling and nothing at all for the rest.
-function parsePersistedSidecar(value: unknown): SessionSidecarObservation | undefined {
-  if (value === 'none' || value === 'unknown') {
-    return value
-  }
-  if (!isRecord(value)) {
-    return undefined
-  }
-  const { path, mtimeMs, sizeBytes } = value
-  return typeof path === 'string' && typeof mtimeMs === 'number' && typeof sizeBytes === 'number'
-    ? { path, mtimeMs, sizeBytes }
-    : undefined
 }
