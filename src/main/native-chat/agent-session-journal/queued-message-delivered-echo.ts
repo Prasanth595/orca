@@ -13,14 +13,14 @@ import {
 import type { JournalRow } from './journal-row-schema'
 import type { QueuedMessageRow } from './queued-message-table'
 
-/** The waiting draft this appended row proves was delivered, or null. Called
- *  before the row applies, for every row, so a row that is no new provider
- *  echo of a user message returns before anything else is read. */
-export function draftDeliveredByEcho(
+/** The waiting drafts this appended row proves were delivered. The fold calls it before the row
+ *  applies, for every item row, so a row that is no new provider echo of a user message returns
+ *  before anything else is read. */
+export function draftsDeliveredByEcho(
   state: JournalReducerState,
   drafts: () => readonly QueuedMessageRow[],
   row: JournalRow
-): string | null {
+): string[] {
   const echoes = appendedItems(row).filter(
     (item) =>
       isProviderUserMessageEcho(item.itemId, item.body) &&
@@ -29,24 +29,19 @@ export function draftDeliveredByEcho(
       journalEchoClaimant(state, item.itemId, item.body) === null
   )
   if (echoes.length === 0) {
-    return null
+    return []
   }
-  const spent = spentWaitingDrafts(state, drafts())
-  for (const item of echoes) {
-    const delivered = spent.find((draft) => echoProvesDelivered(state, draft, item.body, row.seq))
-    if (delivered) {
-      return delivered.draft.messageId
-    }
-  }
-  return null
+  return spentWaitingDrafts(state, drafts())
+    .filter((spent) => echoes.some((item) => echoProvesDelivered(state, spent, item.body, row.seq)))
+    .map((spent) => spent.draft.messageId)
 }
 
 /**
- * The re-derivation behind that per-row hook, which is bookkeeping and may be
- * skipped: waiting drafts an echo ALREADY in the journal proves delivered. An
- * unclaimed echo is the item still stored under its provider id — a claimed one
- * was folded into its submission's item. Reads every item, so callers run it
- * only where a draft is about to send, never per streamed row.
+ * The same proof for a card that comes to wait again: waiting drafts an echo
+ * ALREADY in the journal proves delivered. An unclaimed echo is the item still
+ * stored under its provider id — a claimed one was folded into its submission's
+ * item. Reads every item, but only once some hand-off of the card was refused
+ * after hand-over, so a card that never left costs nothing.
  */
 export function draftsDeliveredByAppliedEcho(
   state: JournalReducerState,

@@ -5,7 +5,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AGENT_JOURNAL_THREAD_SCOPE } from '../../../shared/agent-session-journal-types'
 import type {
   AgentJournalMessageItem,
@@ -14,7 +14,6 @@ import type {
 import { agentSessionFailureFact } from '../../../shared/agent-session-failure'
 import { agentSessionFailureWords } from '../../../shared/agent-session-failure-words'
 import { agentSessionSendBodyFingerprint } from '../../../shared/structured-agent-session-send-mutation'
-import { JournalQueuedMessages } from './journal-queued-messages'
 import type { AgentSessionJournal } from './journal-store'
 import { createTrackedJournalOpener } from './journal-host-database-test-support'
 import { claudeProviderHandle } from '../../../shared/agent-session-provider-handle-encoding'
@@ -70,35 +69,31 @@ export function registerQueuedMessageDeliveredEchoTests(): void {
   async function handOffAndReject(
     journal: AgentSessionJournal,
     text: string,
-    options: { handedOver: boolean } = { handedOver: true }
+    options: { handedOver: boolean } = { handedOver: true },
+    draft = 'draft-1'
   ): Promise<void> {
     const body = message(text)
     const fingerprint = agentSessionSendBodyFingerprint(IDENTITY.sessionId, body)
-    await journal.queuedMessages.insert({
-      messageId: 'draft-1',
-      body,
-      fingerprint,
-      hostInstance: 'p'
-    })
+    await journal.queuedMessages.insert({ messageId: draft, body })
     await journal.appendSubmission(
       {
-        clientMessageId: 'sub-draft-1',
+        clientMessageId: `sub-${draft}`,
         payloadFingerprint: fingerprint,
         body,
         fence: 0,
         handoverRecorded: true
       },
-      { messageId: 'draft-1', expect: 'waiting', settledByOp: null }
+      { messageId: draft, expect: 'waiting' }
     )
     if (options.handedOver) {
       await journal.resolveDispatch({
-        clientMessageId: 'sub-draft-1',
+        clientMessageId: `sub-${draft}`,
         state: 'pending',
         fence: 0,
         turnScope: AGENT_JOURNAL_THREAD_SCOPE
       })
       await journal.resolveDispatch({
-        clientMessageId: 'sub-draft-1',
+        clientMessageId: `sub-${draft}`,
         state: 'rejected',
         ...STOP_WITHDRAWAL,
         fence: 0
@@ -106,10 +101,7 @@ export function registerQueuedMessageDeliveredEchoTests(): void {
     } else {
       await journal.rejectQueuedSubmissions(0, STOP_WITHDRAWAL)
     }
-    expect(journal.queuedMessages.get('draft-1')).toMatchObject({
-      state: 'waiting',
-      consumedAs: null
-    })
+    expect(journal.queuedMessages.get(draft)).toMatchObject({ state: 'waiting', consumedAs: null })
   }
 
   beforeEach(async () => {
@@ -126,13 +118,28 @@ export function registerQueuedMessageDeliveredEchoTests(): void {
     it('is withdrawn when the provider echoes the message it was withdrawn from', async () => {
       const journal = await withdrawnDraft('did it land?')
       await echo(journal, 'echo-1', 'did it land?')
-      expect(journal.queuedMessages.get('draft-1')).toMatchObject({
-        state: 'withdrawn',
-        settledByOp: null
-      })
+      expect(journal.queuedMessages.get('draft-1')).toMatchObject({ state: 'withdrawn' })
       // The rejection stays terminal: the echo is kept apart, not folded into it.
       expect(journal.submission('sub-draft-1')?.dispatchState).toBe('rejected')
       expect(journal.snapshot().items.map((item) => item.itemId)).toHaveLength(2)
+    })
+
+    it('withdraws every draft one batch echoes, so neither is sent again', async () => {
+      const journal = await withdrawnDraft('first')
+      await handOffAndReject(journal, 'second', { handedOver: true }, 'draft-2')
+      const echoed = (uuid: string, text: string) => ({
+        kind: 'item' as const,
+        identity: { provider: 'claude' as const, sessionId: 'native-1', uuid },
+        body: message(text),
+        turnScope: AGENT_JOURNAL_THREAD_SCOPE
+      })
+      await journal.appendLifecycleBatch({
+        settlementId: 'turn-settled',
+        fence: 0,
+        mutations: [echoed('echo-1', 'first'), echoed('echo-2', 'second')]
+      })
+      expect(journal.queuedMessages.get('draft-1')?.state).toBe('withdrawn')
+      expect(journal.queuedMessages.get('draft-2')?.state).toBe('withdrawn')
     })
 
     it('stays waiting when the rejected hand-off never reached the agent: the echo is some other message', async () => {
@@ -162,40 +169,19 @@ export function registerQueuedMessageDeliveredEchoTests(): void {
       expect(journal.queuedMessages.get('draft-1')?.state).toBe('waiting')
     })
 
-    describe('when the per-row hook was skipped', () => {
-      it('the re-derivation withdraws it from the echo already in the journal, and at reopen', async () => {
-        let journal = await withdrawnDraft('did it land?')
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-        const hook = vi
-          .spyOn(JournalQueuedMessages.prototype, 'onRowInTransaction')
-          .mockImplementationOnce(() => {
-            throw new Error('bookkeeping failed')
-          })
-        try {
-          await echo(journal, 'echo-1', 'did it land?')
-        } finally {
-          hook.mockRestore()
-          warn.mockRestore()
-        }
-        expect(journal.queuedMessages.get('draft-1')?.state).toBe('waiting')
-        expect(journal.queuedMessages.deliveredByEchoOwed()).toBe(true)
-        // The drain's heal, before the draft could send again.
-        await journal.queuedMessages.settleOwed()
-        expect(journal.queuedMessages.get('draft-1')?.state).toBe('withdrawn')
-        expect(journal.queuedMessages.deliveredByEchoOwed()).toBe(false)
-        await journal.close()
-        journal = await open()
-        expect(journal.queuedMessages.get('draft-1')?.state).toBe('withdrawn')
-      })
+    it('stays withdrawn when the chat reopens: replay folds the same rows', async () => {
+      let journal = await withdrawnDraft('did it land?')
+      await echo(journal, 'echo-1', 'did it land?')
+      await journal.close()
+      journal = await open()
+      expect(journal.queuedMessages.get('draft-1')?.state).toBe('withdrawn')
+    })
 
-      it('an unclaimed echo from before the hand-off proves nothing about it', async () => {
-        const journal = await open()
-        await echo(journal, 'typed-in-the-agent', 'did it land?')
-        await handOffAndReject(journal, 'did it land?')
-        expect(journal.queuedMessages.deliveredByEchoOwed()).toBe(false)
-        await journal.queuedMessages.settleOwed()
-        expect(journal.queuedMessages.get('draft-1')?.state).toBe('waiting')
-      })
+    it('an unclaimed echo from before the hand-off proves nothing about it', async () => {
+      const journal = await open()
+      await echo(journal, 'typed-in-the-agent', 'did it land?')
+      await handOffAndReject(journal, 'did it land?')
+      expect(journal.queuedMessages.get('draft-1')?.state).toBe('waiting')
     })
   })
 }
