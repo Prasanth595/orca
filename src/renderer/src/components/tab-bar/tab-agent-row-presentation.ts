@@ -31,9 +31,13 @@ export function chatUnavailableLabel(reason: ChatUnavailableReason): string {
 
 export function rowTitle(row: NewTabAgentMenuRow, label: string): string {
   return row.kind === 'chat'
-    ? translate('auto.components.tab.bar.QuickLaunchButton.startChat', 'Start a {{value0}} chat', {
-        value0: label
-      })
+    ? translate(
+        'auto.components.tab.bar.QuickLaunchButton.startChat',
+        'Start a chat with {{value0}}',
+        {
+          value0: label
+        }
+      )
     : translate(
         'auto.components.tab.bar.QuickLaunchButton.ec2adf093e',
         'Launch {{value0}} in a new terminal',

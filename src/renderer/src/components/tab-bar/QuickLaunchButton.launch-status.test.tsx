@@ -298,7 +298,7 @@ describe('QuickLaunchAgentMenuItems launches', () => {
     expect(launchMock.mock.calls.at(-1)?.[0].groupId).toBe('group-1')
     expect(onPromptHandedOff).toHaveBeenCalledOnce()
     await expect(onPromptHandedOff.mock.calls[0][0]).resolves.toEqual({ delivered: true })
-    fireEvent.click(document.querySelector('[title="Start a Codex chat"]')!)
+    fireEvent.click(document.querySelector('[title="Start a chat with Codex"]')!)
     expect(launchMock).toHaveBeenCalledTimes(2)
     expect(launchMock.mock.calls[1][0]).toMatchObject({
       requestedSurface: 'chat',

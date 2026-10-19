@@ -3768,7 +3768,7 @@
             "chatCheckFailed": "Couldn’t check chat availability",
             "chatLoading": "Checking chat support…",
             "chatUnavailableAfterSelection": "Couldn't start a {{value0}} chat.",
-            "startChat": "Start a {{value0}} chat",
+            "startChat": "Start a chat with {{value0}}",
             "cliTag": "(CLI)",
             "agentsLoading": "Loading agents"
           },
