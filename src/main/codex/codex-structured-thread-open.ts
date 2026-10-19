@@ -50,7 +50,9 @@ function isCodexNoRolloutError(error: unknown, threadId: string): boolean {
  * every Orca key the app-server holds. Codex adds `set` keys after that filter and merges these
  * per key, so the user's own policy stays as written.
  */
-function shellEnvironmentSetConfig(env: Record<string, string> | undefined): Record<string, string> {
+function shellEnvironmentSetConfig(
+  env: Record<string, string> | undefined
+): Record<string, string> {
   return Object.fromEntries(
     Object.entries(env ?? {}).map(([key, value]) => [`shell_environment_policy.set.${key}`, value])
   )
@@ -72,7 +74,8 @@ export async function openCodexThread(
     /** Env every command the agent runs must see, whatever the user's shell environment policy. */
     commandEnv?: Record<string, string>
   },
-  timeoutMs: number | undefined
+  /** null: no deadline; the start that opens the thread bounds it. */
+  timeoutMs: number | null | undefined
 ): Promise<CodexOpenedThread> {
   const resumeThreadId = launch.resumeThreadId
   const config = { ...launch.threadConfig, ...shellEnvironmentSetConfig(launch.commandEnv) }

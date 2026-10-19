@@ -1,4 +1,5 @@
 import type { AgentSessionAccountKind } from '../../shared/agent-session-availability'
+import { throwIfSignalAborted, waitForPromiseWithSignal } from '../../shared/abort-signal-reason'
 import {
   CODEX_STRUCTURED_HANDLE_NAMESPACE,
   isAgentSessionProviderHandleInNamespace
@@ -124,6 +125,7 @@ export async function acquireCodexStructuredSession(input: {
         throw new AgentSessionPreSpawnError(error)
       })
     acquisitions.assertCurrent(sessionId, attempt)
+    throwIfSignalAborted(acquireInput.signal)
     account = launch.codexHome ? deps.resolveAccountKind?.(launch.codexHome) : undefined
     const connection = await open(
       {
@@ -159,6 +161,7 @@ export async function acquireCodexStructuredSession(input: {
           ),
         onSpawned: spawnIdentity.onSpawned,
         ...(acquireInput.onOutput ? { onOutput: acquireInput.onOutput } : {}),
+        ...(acquireInput.signal ? { signal: acquireInput.signal } : {}),
         onExit: (error, exit) => {
           try {
             handleCodexSessionExit({
@@ -194,14 +197,16 @@ export async function acquireCodexStructuredSession(input: {
       ...(deps.logger ? { logger: deps.logger } : {})
     })
     acquisitions.assertCurrent(sessionId, attempt)
+    throwIfSignalAborted(acquireInput.signal)
     const commandEnv = {
       ...launch.commandEnv,
       ...(launch.visuals ? { [NATIVE_CHAT_SCRATCH_DIR_ENV]: launch.visuals.folder } : {})
     }
-    const opened = await openCodexThread(
-      connection,
-      { ...threadLaunch, commandEnv },
-      deps.requestTimeoutMs
+    // No deadline of its own: resuming a long rollout or starting MCP servers takes what it takes.
+    // The host's start limits, a close and a Stop end the wait through the signal.
+    const opened = await waitForPromiseWithSignal(
+      openCodexThread(connection, { ...threadLaunch, commandEnv }, deps.requestTimeoutMs ?? null),
+      acquireInput.signal
     )
     acquisitions.assertCurrent(sessionId, attempt)
     primaryThreadId = opened.threadId
