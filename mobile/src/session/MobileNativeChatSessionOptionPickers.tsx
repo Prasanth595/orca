@@ -5,6 +5,7 @@ import { ChevronLeft, X } from 'lucide-react-native'
 import { BottomDrawer } from '../components/BottomDrawer'
 import { colors, radii, spacing, typography } from '../theme/mobile-theme'
 import {
+  isReadOnlySessionOptionValue,
   sessionOptionDispatchUnconfirmed,
   type SessionOptionDescriptor,
   type SessionOptionValue
@@ -264,7 +265,9 @@ function OptionRows({
             valueColor={isPermission ? permissionColor : undefined}
             disabled={disabled}
             divided={index < descriptors.length - 1}
-            onPress={() => onNavigate(descriptor.id)}
+            onPress={
+              isReadOnlySessionOptionValue(descriptor) ? undefined : () => onNavigate(descriptor.id)
+            }
           />
         )
       })}

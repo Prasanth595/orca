@@ -7,9 +7,13 @@ import { applyMobileColorScheme, darkColors, lightColors } from '../theme/mobile
 import { MobileNativeChatComposerField } from './MobileNativeChatComposerField.web'
 import { MobileNativeChatComposerMenu } from './MobileNativeChatComposerMenu'
 import { MobileNativeChatComposerAttachments } from './MobileNativeChatComposerAttachments'
+import { SessionOptionSummaryRow } from './MobileNativeChatSessionOptionRows'
 
 vi.mock('react-native', () => vi.importActual<typeof import('react-native')>('react-native-web'))
 vi.mock('lucide-react-native', () => ({
+  Check: () => null,
+  ChevronRight: () => null,
+  ShieldAlert: () => null,
   FileText: () => null,
   Package: () => null,
   Terminal: () => null,
@@ -46,6 +50,40 @@ function expectColor(element: HTMLElement, expected: string): void {
   swatch.style.color = expected
   expect(processColor(getComputedStyle(element).color)).toBe(processColor(swatch.style.color))
 }
+
+it.each([true, false])(
+  'repaints an option summary while preserving its read-only state: %s',
+  async (readOnly) => {
+    const onPress = vi.fn()
+    await act(async () =>
+      root.render(
+        createElement(SessionOptionSummaryRow, {
+          label: 'Effort',
+          value: 'High',
+          disabled: false,
+          divided: true,
+          onPress: readOnly ? undefined : onPress
+        })
+      )
+    )
+    const row = container.querySelector('[aria-label="Effort, High"]')
+    if (!(row instanceof HTMLElement)) {
+      throw new Error('Missing effort summary')
+    }
+    const label = textNode('Effort')
+    const value = textNode('High')
+    for (const scheme of ['light', 'dark', 'light'] as const) {
+      await act(async () => applyMobileColorScheme(scheme))
+      const palette = scheme === 'light' ? lightColors : darkColors
+      expectColor(label, palette.textPrimary)
+      expectColor(value, palette.textSecondary)
+      expect(container.querySelector('[aria-label="Effort, High"]')).toBe(row)
+      expect(row.getAttribute('role')).toBe(readOnly ? null : 'button')
+    }
+    await act(async () => row.click())
+    expect(onPress).toHaveBeenCalledTimes(readOnly ? 0 : 1)
+  }
+)
 
 it('repaints the highlighted skill while retaining the same editable draft', async () => {
   const value = '/review-pr preserve the draft'

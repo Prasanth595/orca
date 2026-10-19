@@ -1,4 +1,7 @@
-import { getRegisteredSshState, listRegisteredSshTargets } from '../../ssh/ssh-target-registry'
+import {
+  getRegisteredSshState,
+  listRegisteredSshTargets
+} from '../../ssh/targets/ssh-target-registry'
 import { getWslHostService } from '../../wsl/wsl-host-service-instance'
 import type { RuntimeClientEvent } from '../../../shared/runtime-client-events'
 import type { DesktopSidebarFacts } from '../../../shared/sidebar-list/desktop-sidebar-facts'
@@ -9,6 +12,7 @@ import type { WorkspaceCreationRegistry } from './workspace-creation-registry'
 import type { WorkspaceRowsProducer } from './workspace-rows-producer'
 import type { SidebarInputsFeedDomain } from './sidebar-inputs-feed'
 import { readDesktopSidebarFacts } from './desktop-sidebar-facts'
+import { buildPairedServerReviewFacts } from '../../../shared/sidebar-list/workspace-review-facts'
 
 /** This host's store and connection registries, read the way sidebarInputs.desktopFacts reads them. */
 export function readRuntimeDesktopSidebarFacts(store: RuntimeStore): DesktopSidebarFacts {
@@ -122,7 +126,14 @@ export function sidebarInputsFeedDomains(
     },
     {
       name: 'review',
-      read: async () => (await facts.getWorkspaceReviewFacts()).facts,
+      read: async () => ({
+        // A paired server's rows by the window's cache too; this host's own rows win an id both list.
+        ...buildPairedServerReviewFacts(
+          pairedServerRows.snapshot().servers,
+          requireStore().getGitHubCache().pr
+        ),
+        ...(await facts.getWorkspaceReviewFacts()).facts
+      }),
       // The window's PR cache saves announce no change.
       watch: watchCatalog,
       rereadOnRead: true
