@@ -1,6 +1,7 @@
 import { extractExecError } from '../git/exec-error'
 import { ghExecFileAsync } from '../git/command-runner/gh-exec-file'
 import type { GitHubReviewNotificationProvider } from '../../shared/review-notification-types'
+import { skewBack } from './dedup'
 import type { ReviewEvent, ReviewListingCursors } from './review-event'
 
 export type GitHubSourceError = {
@@ -14,6 +15,24 @@ export type GitHubApiRunner = (
   endpoint: string,
   provider: GitHubReviewNotificationProvider
 ) => Promise<unknown>
+
+/**
+ * Single-page runner for endpoints needing manual pagination: the pulls
+ * endpoint ignores `since`, so it is paged newest-first with a stop condition
+ * instead of `--paginate`.
+ */
+export type GitHubPageRunner = (
+  endpoint: string,
+  provider: GitHubReviewNotificationProvider
+) => Promise<unknown[]>
+
+export function createGitHubPageRunner(): GitHubPageRunner {
+  return async (endpoint) => {
+    const { stdout } = await ghExecFileAsync(['api', endpoint, '--method', 'GET'])
+    const parsed: unknown = JSON.parse(stdout)
+    return Array.isArray(parsed) ? parsed : []
+  }
+}
 
 function classifyError(error: unknown): GitHubSourceError {
   const { stderr } = extractExecError(error)
@@ -154,6 +173,57 @@ export async function listGitHubClosedReviewItems(
   }
 }
 
+const GH_PER_PAGE = 50
+const GH_MAX_PAGES = 10
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function updatedAtMillis(raw: Record<string, unknown>): number {
+  const ts = Date.parse(String(raw.updated_at ?? ''))
+  return Number.isFinite(ts) ? ts : Number.NaN
+}
+
+/**
+ * The pulls endpoint ignores `since`: page newest-first and stop once a page
+ * reaches the overlap floor. The 60s skew stays as the tie-breaker for
+ * second-precision timestamps, not as the pagination mechanism.
+ */
+async function fetchOpenPulls(
+  pageRunner: GitHubPageRunner,
+  slug: string,
+  mrSince: string,
+  provider: GitHubReviewNotificationProvider
+): Promise<Record<string, unknown>[]> {
+  const floor = Date.parse(skewBack(mrSince))
+  const out: Record<string, unknown>[] = []
+  for (let page = 1; page <= GH_MAX_PAGES; page++) {
+    const batch = await pageRunner(
+      `repos/${slug}/pulls?state=open&sort=updated&direction=desc&per_page=${GH_PER_PAGE}&page=${page}`,
+      provider
+    )
+    let done = batch.length < GH_PER_PAGE
+    for (const raw of batch) {
+      if (!isRecord(raw)) {
+        continue
+      }
+      const ts = updatedAtMillis(raw)
+      if (Number.isNaN(ts) || ts > floor) {
+        out.push(raw)
+      } else {
+        // Newest-first: everything from here on is older than the floor.
+        done = true
+        break
+      }
+    }
+    if (done) {
+      break
+    }
+  }
+  return out
+}
+
 /**
  * List open PRs and issues updated since the per-kind cursors (read-only).
  * The issues endpoint returns PRs too; they are filtered out.
@@ -161,17 +231,17 @@ export async function listGitHubClosedReviewItems(
 export async function listGitHubReviewItems(
   provider: GitHubReviewNotificationProvider,
   cursors: ReviewListingCursors,
-  runner: GitHubApiRunner = createGitHubApiRunner()
+  runner: GitHubApiRunner = createGitHubApiRunner(),
+  pageRunner: GitHubPageRunner = createGitHubPageRunner()
 ): Promise<{ mrs: ReviewEvent[]; issues: ReviewEvent[] }> {
   const slug = `${provider.owner}/${provider.repo}`
-  const mrSince = `?state=open&sort=updated&direction=asc&per_page=50&since=${encodeURIComponent(cursors.mrSince)}`
   const issueSince = `?state=open&sort=updated&direction=asc&per_page=50&since=${encodeURIComponent(cursors.issueSince)}`
   try {
-    const [prRaw, issueRaw] = await Promise.all([
-      runner(`repos/${slug}/pulls${mrSince}`, provider),
+    const [prRaws, issueRaw] = await Promise.all([
+      fetchOpenPulls(pageRunner, slug, cursors.mrSince, provider),
       runner(`repos/${slug}/issues${issueSince}`, provider)
     ])
-    const mrs = (Array.isArray(prRaw) ? prRaw : [])
+    const mrs = prRaws
       .map((r) => toEvent(r, 'mr', provider))
       .filter((e): e is ReviewEvent => e !== null)
     const issues = (Array.isArray(issueRaw) ? issueRaw : [])

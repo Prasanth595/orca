@@ -70,14 +70,14 @@ describe('listing-cursors', () => {
       'gitlab.example.com/projects/42',
       since,
       { mrs: [event(1, '2026-10-19T11:05:00Z')], issues: [event(2, '2026-10-19T11:10:00Z')] },
-      { mrs: [], issues: [] },
-      '2026-10-19T12:00:00.000Z'
+      { mrs: [], issues: [] }
     )
     // Normalized on store: the MR cursor must not see the issue timestamp.
     expect(store.getWatermark(key('mr-open'))).toBe('2026-10-19T11:05:00.000Z')
     expect(store.getWatermark(key('issue-open'))).toBe('2026-10-19T11:10:00.000Z')
-    // Empty listings jump to now: the overlap query proved nothing newer exists.
-    expect(store.getWatermark(key('mr-closed'))).toBe('2026-10-19T12:00:00.000Z')
+    // A listing with nothing newer keeps its cursor: jumping to the local now
+    // risks skipping items updated after the forge ran the query.
+    expect(store.getWatermark(key('mr-closed'))).toBe('2026-10-19T11:00:00.000Z')
   })
 
   it('never moves a cursor backwards on clock skew', () => {
@@ -95,11 +95,10 @@ describe('listing-cursors', () => {
         issueClosed: '2026-10-19T11:00:00.000Z'
       },
       { mrs: [event(1, '2026-10-19T11:30:00Z')], issues: [] },
-      { mrs: [], issues: [] },
-      '2026-10-19T12:30:00.000Z'
+      { mrs: [], issues: [] }
     )
-    // A listing older than the cursor falls back to now, never rewinds to the
-    // stale item's timestamp.
-    expect(store.getWatermark(key('mr-open'))).toBe('2026-10-19T12:30:00.000Z')
+    // A listing older than the cursor keeps the cursor: never rewinds to the
+    // stale item's timestamp, never jumps to now.
+    expect(store.getWatermark(key('mr-open'))).toBe('2026-10-19T12:00:00.000Z')
   })
 })

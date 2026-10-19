@@ -579,18 +579,12 @@ describe('poller listing cursors', () => {
       .pop()
     expect(h.cursor('mr-open')).toBe(maxTs)
 
-    // Poll 2: the overlap query refetches the tail, but fingerprints dedup it
-    // and the cursor must not be pinned at the pre-burst position. With
-    // nothing newer in the window it advances to now (the overlap query
-    // proved nothing newer exists).
+    // Poll 2: the overlap query refetches the tail, but fingerprints dedup it.
+    // Nothing is newer than the cursor, so the cursor stays exactly where it
+    // is instead of jumping to the local now (which could skip items updated
+    // after the forge ran the query).
     const second = await h.poller.pollOnce('r1', 'gitlab')
     expect(second.filter((i) => i.disposition === 'notify')).toHaveLength(0)
-    const pinned = new Date('2026-10-19T11:00:00Z').toISOString()
-    const mrOpenCursor = h.cursor('mr-open')
-    expect(mrOpenCursor).not.toBe(pinned)
-    if (mrOpenCursor === null) {
-      throw new Error('expected the mr-open cursor to be set after polling')
-    }
-    expect(Date.parse(mrOpenCursor)).toBeGreaterThanOrEqual(Date.parse(maxTs))
+    expect(h.cursor('mr-open')).toBe(maxTs)
   })
 })

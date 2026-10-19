@@ -67,12 +67,13 @@ export function queryCursors(cursors: ListingCursorSet): {
 }
 
 /**
- * Advance each cursor from its own listing's newest timestamp. The skew lives
- * at query time now, not baked into the cursor: with sources fetching every
- * page, the cursor always moves to the newest seen item, so a burst of items
- * inside the old 60s overlap can no longer pin the cursor and refetch the
- * same set forever. When a listing is empty the cursor jumps to now: the
- * overlap query proved nothing newer exists.
+ * Advance each cursor only from its own listing's newest timestamp. With
+ * sources fetching every page, the cursor always moves to the newest seen
+ * item, so a burst inside the old 60s overlap can no longer pin the cursor
+ * and refetch the same set forever. A listing with nothing newer keeps its
+ * cursor: jumping to the local now risks skipping items updated after the
+ * forge ran the query (slow polls) or when the local clock runs ahead.
+ * Re-scanning the 60s overlap is harmless: fingerprints dedup open items.
  */
 export function advanceListingCursors(
   store: ReviewWatermarkStore,
@@ -81,8 +82,7 @@ export function advanceListingCursors(
   slug: string,
   since: ListingCursorSet,
   listed: { mrs: ReviewEvent[]; issues: ReviewEvent[] },
-  closed: { mrs: ReviewEvent[]; issues: ReviewEvent[] },
-  nowIso: string
+  closed: { mrs: ReviewEvent[]; issues: ReviewEvent[] }
 ): void {
   const itemsOf: Record<keyof ListingCursorSet, ReviewEvent[]> = {
     mrOpen: listed.mrs,
@@ -97,7 +97,7 @@ export function advanceListingCursors(
     // lexicographic comparison. Stored normalized for the same reason.
     const previous = since[field]
     const candidate =
-      max && Date.parse(max) > Date.parse(previous) ? new Date(max).toISOString() : nowIso
+      max && Date.parse(max) > Date.parse(previous) ? new Date(max).toISOString() : previous
     advanceWatermark(store, watermarkKey(provider, host, slug, kind), candidate)
   }
 }

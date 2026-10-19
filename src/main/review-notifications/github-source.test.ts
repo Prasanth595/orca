@@ -1,9 +1,10 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, type Mock } from 'vitest'
 import {
   listGitHubClosedReviewItems,
   listGitHubReviewItems,
   parseSlurpedPages,
-  type GitHubApiRunner
+  type GitHubApiRunner,
+  type GitHubPageRunner
 } from './github-source'
 import { resolveReviewNotificationEvents } from '../../shared/review-notification-types'
 
@@ -57,12 +58,22 @@ function runnerFor(prs: unknown[], issues: unknown[]): GitHubApiRunner {
   })
 }
 
+function pageRunnerFor(prs: unknown[]): Mock<GitHubPageRunner> {
+  return vi.fn(async (endpoint: string) => {
+    if (endpoint.includes('/pulls')) {
+      return prs
+    }
+    throw new Error(`unexpected endpoint ${endpoint}`)
+  })
+}
+
 describe('github-source', () => {
   it('normalizes PRs to kind mr and filters PRs out of the issues list', async () => {
     const { mrs, issues } = await listGitHubReviewItems(
       provider,
       { mrSince: '2026-10-19T08:00:00Z', issueSince: '2026-10-19T08:00:00Z' },
-      runnerFor(prFixture, issueFixture)
+      runnerFor([], issueFixture),
+      pageRunnerFor(prFixture)
     )
     expect(mrs).toHaveLength(1)
     expect(mrs[0]).toMatchObject({
@@ -81,14 +92,23 @@ describe('github-source', () => {
     const authRunner: GitHubApiRunner = async () => {
       throw Object.assign(new Error('403 Forbidden'), { stderr: 'HTTP 403: Forbidden' })
     }
+    const authPageRunner: GitHubPageRunner = async () => {
+      throw Object.assign(new Error('403 Forbidden'), { stderr: 'HTTP 403: Forbidden' })
+    }
     await expect(
       listGitHubReviewItems(
         provider,
         { mrSince: '2026-10-19T08:00:00Z', issueSince: '2026-10-19T08:00:00Z' },
-        authRunner
+        authRunner,
+        authPageRunner
       )
     ).rejects.toMatchObject({ kind: 'auth' })
     const rateRunner: GitHubApiRunner = async () => {
+      throw Object.assign(new Error('abuse'), {
+        stderr: 'You have exceeded a secondary rate limit'
+      })
+    }
+    const ratePageRunner: GitHubPageRunner = async () => {
       throw Object.assign(new Error('abuse'), {
         stderr: 'You have exceeded a secondary rate limit'
       })
@@ -97,21 +117,27 @@ describe('github-source', () => {
       listGitHubReviewItems(
         provider,
         { mrSince: '2026-10-19T08:00:00Z', issueSince: '2026-10-19T08:00:00Z' },
-        rateRunner
+        rateRunner,
+        ratePageRunner
       )
     ).rejects.toMatchObject({ kind: 'rate_limited' })
   })
 
-  it('passes since and the repo-qualified endpoints', async () => {
+  it('pages PRs newest-first and passes since on the issues endpoint', async () => {
     const runner = runnerFor([], [])
+    const pageRunner = pageRunnerFor([])
     await listGitHubReviewItems(
       provider,
       { mrSince: '2026-10-19T08:00:00Z', issueSince: '2026-10-19T08:00:00Z' },
-      runner
+      runner,
+      pageRunner
     )
-    const endpoints = runner.mock.calls.map((c) => c[0])
-    expect(endpoints.some((e) => e.includes('repos/octocat/hello-world/pulls'))).toBe(true)
-    expect(endpoints.some((e) => e.includes('since='))).toBe(true)
+    const pullEndpoints = pageRunner.mock.calls.map((c) => c[0])
+    expect(pullEndpoints.some((e) => e.includes('repos/octocat/hello-world/pulls'))).toBe(true)
+    expect(pullEndpoints.every((e) => !e.includes('since='))).toBe(true)
+    const issueEndpoints = runner.mock.calls.map((c) => c[0])
+    expect(issueEndpoints.some((e) => e.includes('repos/octocat/hello-world/issues'))).toBe(true)
+    expect(issueEndpoints.some((e) => e.includes('since='))).toBe(true)
   })
 
   it('classifies a 403 secondary rate limit as rate_limited, not auth', async () => {
@@ -155,21 +181,65 @@ describe('github-source', () => {
     expect(seen[0]).toContain('since=2026-10-19T08%3A00%3A00Z')
   })
 
-  it('queries PR and issue endpoints with their own cursors', async () => {
+  it('queries the issues endpoint with its own cursor; pulls page newest-first', async () => {
     const seen: string[] = []
     const runner: GitHubApiRunner = vi.fn(async (endpoint: string) => {
+      seen.push(endpoint)
+      return []
+    })
+    const pageRunner: GitHubPageRunner = vi.fn(async (endpoint: string) => {
       seen.push(endpoint)
       return []
     })
     await listGitHubReviewItems(
       provider,
       { mrSince: '2026-10-19T08:00:00Z', issueSince: '2026-10-19T09:00:00Z' },
-      runner
+      runner,
+      pageRunner
     )
     const pulls = seen.find((e) => e.includes('/pulls'))
     const issues = seen.find((e) => e.includes('/issues'))
-    expect(pulls).toContain('since=2026-10-19T08%3A00%3A00Z')
+    // The pulls endpoint ignores `since`: it is paged newest-first instead.
+    expect(pulls).toContain('sort=updated')
+    expect(pulls).toContain('direction=desc')
+    expect(pulls).not.toContain('since=')
     expect(issues).toContain('since=2026-10-19T09%3A00%3A00Z')
+  })
+
+  it('stops pulling pages once PRs are older than the cursor floor', async () => {
+    const pr = (n: number, updatedAt: string) => ({
+      number: n,
+      title: `PR ${n}`,
+      html_url: `https://github.com/octocat/hello-world/pull/${n}`,
+      user: { login: 'alice' },
+      updated_at: updatedAt,
+      draft: false
+    })
+    // Newest-first: page 1 is full and all newer than the floor, page 2
+    // straddles it, so paging must stop mid-page-2 at the older item.
+    const page1 = Array.from({ length: 50 }, (_, i) => pr(100 + i, '2026-10-19T10:30:00Z'))
+    const page2 = [
+      pr(3, '2026-10-19T10:20:00Z'),
+      pr(2, '2026-10-19T10:10:00Z'),
+      pr(1, '2026-10-19T07:00:00Z')
+    ]
+    const pages: Record<number, unknown[]> = { 1: page1, 2: page2 }
+    let calls = 0
+    const pageRunner: GitHubPageRunner = vi.fn(async (endpoint: string) => {
+      calls++
+      const page = Number(new URLSearchParams(endpoint.split('?')[1]).get('page') ?? '1')
+      return pages[page] ?? []
+    })
+    const { mrs } = await listGitHubReviewItems(
+      provider,
+      { mrSince: '2026-10-19T08:00:00Z', issueSince: '2026-10-19T08:00:00Z' },
+      runnerFor([], []),
+      pageRunner
+    )
+    // Floor is mrSince minus the 60s overlap: 07:59. PR 1 (07:00) is excluded.
+    expect(mrs).toHaveLength(52)
+    expect(mrs.some((m) => m.iid === 1)).toBe(false)
+    expect(calls).toBe(2)
   })
 
   it('lists closed PRs and issues for resolve detection', async () => {

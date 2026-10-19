@@ -289,8 +289,7 @@ export class ReviewNotificationPoller {
       delivery: this.deps.delivery
     })
 
-    const nowIso = new Date(this.deps.now()).toISOString()
-    advanceListingCursors(this.deps.store, job.provider, host, slug, since, listed, closed, nowIso)
+    advanceListingCursors(this.deps.store, job.provider, host, slug, since, listed, closed)
     await this.deps.store.flush()
     return delivered
   }
