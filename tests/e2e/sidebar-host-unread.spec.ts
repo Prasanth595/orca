@@ -1,7 +1,7 @@
 import type { Page } from '@stablyai/playwright-test'
 import { test, expect } from './helpers/orca-app'
 import { postClaudeHook, readHookEndpoint } from './helpers/agent-hook-endpoint'
-import { SIDEBAR_INPUTS_BUILD, expectNoSidebarShadowMismatches } from './helpers/sidebar-shadow'
+import { SIDEBAR_INPUTS_BUILD } from './helpers/sidebar-inputs-build'
 import { ensureTerminalVisible, waitForActiveWorktree, waitForSessionReady } from './helpers/store'
 import { waitForActivePaneHookDescriptor, waitForActiveTerminalManager } from './helpers/terminal'
 import {
@@ -65,7 +65,6 @@ test('the host raises the unread flag where the window’s user is not looking, 
       )
     )
     .toBe(true)
-  await expectNoSidebarShadowMismatches(orcaPage)
 
   // Mark as read writes through to the host.
   await orcaPage.evaluate((id) => {
@@ -79,5 +78,52 @@ test('the host raises the unread flag where the window’s user is not looking, 
     tool_input: { command: 'ls' }
   })
   await expect.poll(unread).toBe(true)
-  await expectNoSidebarShadowMismatches(orcaPage)
+})
+
+test('the host raises no flag for a workspace the Filters hide while hidden workspaces stay quiet', async ({
+  orcaPage,
+  electronApp
+}) => {
+  test.setTimeout(90_000)
+  await waitForSessionReady(orcaPage)
+  await waitForActiveWorktree(orcaPage)
+  await ensureTerminalVisible(orcaPage)
+  await waitForActiveTerminalManager(orcaPage, 30_000)
+  const endpoint = await readHookEndpoint(electronApp)
+  const pane = await waitForActivePaneHookDescriptor(orcaPage)
+  const rowKey = `local|${pane.worktreeId}`
+  const unread = async (): Promise<boolean | undefined> =>
+    (await readHostRow(orcaPage, rowKey))?.isUnread
+  const setNotifyHidden = (notify: boolean): Promise<void> =>
+    orcaPage.evaluate(async (value) => {
+      const state = window.__store!.getState()
+      await state.updateSettings({
+        notifications: { ...state.settings!.notifications, notifyHiddenWorkspaces: value }
+      })
+    }, notify)
+  // The seeded workspace is the primary checkout, which "Hide default branch" hides.
+  await orcaPage.evaluate(() => {
+    const state = window.__store!.getState()
+    state.setHideDefaultBranchWorkspace(true)
+    state.setActiveView('tasks')
+  })
+  await setNotifyHidden(false)
+  // The host reads the persisted switch, not the window's copy.
+  await expect
+    .poll(() =>
+      orcaPage.evaluate(async () => (await window.api.ui.get()).hideDefaultBranchWorkspace)
+    )
+    .toBe(true)
+  await expect.poll(unread).toBe(false)
+
+  await postClaudeHook(endpoint, pane, { hook_event_name: 'UserPromptSubmit', prompt: 'go' })
+  await expect.poll(async () => (await readHostRow(orcaPage, rowKey))?.smartTier).toBe('working')
+  await postClaudeHook(endpoint, pane, { hook_event_name: 'Stop', last_assistant_message: 'ok' })
+  await expect.poll(async () => (await readHostRow(orcaPage, rowKey))?.smartTier).toBe('done')
+  expect(await unread()).toBe(false)
+
+  await setNotifyHidden(true)
+  await postClaudeHook(endpoint, pane, { hook_event_name: 'UserPromptSubmit', prompt: 'more' })
+  await postClaudeHook(endpoint, pane, { hook_event_name: 'Stop', last_assistant_message: 'ok' })
+  await expect.poll(unread).toBe(true)
 })
