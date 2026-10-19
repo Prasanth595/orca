@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { AppState, type AppStateStatus, Platform } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import { loadHosts } from '../transport/host-store'
@@ -11,6 +11,8 @@ import { loadCustomKeys } from '../components/CustomKeyModal'
 import type { MobileSessionTabReconciliationModel } from './use-mobile-session-tab-reconciliation'
 
 export function useMobileSessionLifecycle(scope: MobileSessionTabReconciliationModel) {
+  const [customKeysLoaded, setCustomKeysLoaded] = useState(false)
+  const [accessoryLayoutLoaded, setAccessoryLayoutLoaded] = useState(false)
   const {
     hostId,
     connState,
@@ -45,8 +47,12 @@ export function useMobileSessionLifecycle(scope: MobileSessionTabReconciliationM
     }
   }, [hostId])
 
+  // Why: the route waits on both reads so the accessory bar first draws saved keys, not defaults.
   useEffect(() => {
-    void loadCustomKeys().then(setCustomKeys)
+    void loadCustomKeys().then((keys) => {
+      setCustomKeys(keys)
+      setCustomKeysLoaded(true)
+    })
   }, [])
 
   useFocusEffect(
@@ -55,6 +61,7 @@ export function useMobileSessionLifecycle(scope: MobileSessionTabReconciliationM
       void loadTerminalAccessoryLayout().then((layout) => {
         if (!stale) {
           setVisibleBuiltInIds(layout.visibleBuiltInIds)
+          setAccessoryLayoutLoaded(true)
         }
       })
       return () => {
@@ -136,6 +143,7 @@ export function useMobileSessionLifecycle(scope: MobileSessionTabReconciliationM
     })
   }, [connState, scheduleDelayedAction, subscribeToTerminal, unsubscribeTerminal])
   return {
+    accessoryPreferencesReady: customKeysLoaded && accessoryLayoutLoaded,
     pendingForegroundRecoveryRef
   }
 }
