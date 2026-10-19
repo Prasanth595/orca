@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { MobileNativeChatView, type MobileNativeChatInputLockReason } from './MobileNativeChatView'
 import { foldMobileNativeChatMessages } from './mobile-native-chat-render-data'
+import type { DiscoveredSkill } from '../../../src/shared/skills'
 import type { MobileNativeChatImageAttachments } from './use-mobile-native-chat-image-attachments'
 import type { MobileNativeChatController } from './use-mobile-native-chat-controller'
 import type { MobileNativeChatStructuredComposer } from './MobileNativeChatComposer'
@@ -25,6 +26,8 @@ type Props = {
   images: MobileNativeChatImageAttachments
   /** A structured chat's + sheet, files and skills; null on a terminal-backed chat. */
   structuredComposer?: MobileNativeChatStructuredComposer | null
+  /** What the worktree's host scanned for the chat's agent, offered in the `/` menu on every lane. */
+  discoveredSkills?: readonly DiscoveredSkill[]
   onMicPress: () => void
   micActive: boolean
   dictationMode: string | undefined
@@ -53,6 +56,7 @@ export function MobileNativeChatOverlay({
   onOpenFile,
   images,
   structuredComposer = null,
+  discoveredSkills,
   onMicPress,
   micActive,
   dictationMode,
@@ -172,6 +176,7 @@ export function MobileNativeChatOverlay({
               onNeedFiles={controller.loadNativeChatFiles}
               sessionOptions={controller.nativeChatSessionOptions}
               structuredComposer={structuredComposer}
+              discoveredSkills={discoveredSkills}
               keyboardInset={keyboardInset}
             />
           </MobileNativeChatReplyRevealsContext.Provider>
