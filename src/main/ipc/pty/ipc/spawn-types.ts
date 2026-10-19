@@ -1,3 +1,5 @@
+import type { PaneSpawnReservation } from '../pane/spawn-reservation'
+import type { PaneSpawnOperation } from '../pane/pane-spawn-operation'
 import type { TuiAgent } from '../../../../shared/tui-agent'
 import type {
   AgentProviderSessionMetadata,
@@ -71,11 +73,18 @@ export type AdoptStablePaneArgs = {
   rows: number
   cwd?: string
   connectionId?: string | null
-  worktreeId: string
+  worktreeId?: string
   preAllocatedHandle?: string
   tabId: string
   leafId: string
+  onAdopted?: (result: PtySpawnResult) => void
+  completed?: AdoptStablePaneResult
   ownsPaneSpawnReservation?: true
+  reservation?: PaneSpawnReservation
+  stoppedPtyId?: string
+  renderer?: boolean
+  signal?: AbortSignal
+  spawnFresh?: (operation: PaneSpawnOperation) => Promise<PtySpawnResult>
 }
 
 export type AdoptStablePaneResult = {

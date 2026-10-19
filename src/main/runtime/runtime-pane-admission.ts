@@ -1,3 +1,4 @@
+import { PaneOwnerContentionError } from '../ipc/pty/pane/pane-spawn-operation'
 import { toSshExecutionHostId } from '../../shared/execution-host'
 import type {
   TerminalPaneAdmission,
@@ -110,7 +111,7 @@ export async function startInAdmittedPane<T>(
   try {
     return { outcome, result: await start(outcome) }
   } catch (error) {
-    if (outcome === 'admitted') {
+    if (outcome === 'admitted' && !(error instanceof PaneOwnerContentionError)) {
       await withdrawAdmittedPane(store, admission, hostId)
     }
     throw error
@@ -128,6 +129,9 @@ export async function spawnInAdmittedPane(
   args: AdmittedSpawnArgs
 ): ReturnType<Spawn> {
   const { groupId: _groupId, afterTabId: _afterTabId, ...spawnArgs } = args
+  if (args.paneSpawnOperation?.mustExist) {
+    return controller.spawn!(spawnArgs)
+  }
   const { outcome, result } = await startInAdmittedPane(
     store,
     admissionFor(args),

@@ -1,3 +1,5 @@
+import * as teamsPlan from '../runtime/terminal/launch/agent-teams-launch-plan'
+import { SessionNotFoundError } from '../daemon/daemon-errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setupPtyIpcSuite } from './pty-ipc-test-harness'
 import { classifyErrorMock, statSyncMock, trackMock } from './pty-ipc-mock-registry'
@@ -287,6 +289,94 @@ describe('launch facts outside the tables', () => {
   const suite = setupPtyIpcSuite()
   afterEach(() => restoreMainPlatform())
 
+  it.each(['ipc', 'runtime'] as const)(
+    '%s adopts the saved winner without launching again',
+    async (lane) => {
+      const lanes = startParityLanes(suite, { workspace: POSIX_REPO })
+      const pane = {
+        worktreeId: launchWorkspaceId(POSIX_REPO),
+        tabId: HOST_TAB_ID,
+        leafId: HOST_LEAF_ID
+      }
+      await lanes.store.persistPtyBinding({ ...pane, ptyId: 'old' })
+      lanes.provider
+        .mockImplementationOnce(async () => {
+          await lanes.store.persistPtyBinding({
+            ...pane,
+            ptyId: 'winner',
+            incarnationId: 'winner-inc'
+          })
+          throw new SessionNotFoundError('old')
+        })
+        .mockResolvedValueOnce({ id: 'winner', incarnationId: 'winner-inc', isReattach: true })
+      await (lane === 'ipc'
+        ? expect(lanes.spawnWindow({ ...pane, cols: 80, rows: 24 })).resolves.toMatchObject({
+            id: 'winner'
+          })
+        : lanes.runtime.createTerminal(`id:${pane.worktreeId}`, {
+            tabId: pane.tabId,
+            leafId: pane.leafId
+          }))
+      expect(
+        lanes.runtime.resolveTerminalPane(`${pane.tabId}:${pane.leafId}`, pane.worktreeId)
+      ).toMatchObject({ ptyId: 'winner', connected: true })
+      expect(lanes.provider.mock.calls.map(([args]) => args.sessionId)).toEqual(['old', 'winner'])
+      expect(
+        lanes.provider.mock.calls.every(([args]) => args.attachOnly && args.command === undefined)
+      ).toBe(true)
+      expect(
+        lanes.store.getWorkspaceSession().terminalLayoutsByTabId[pane.tabId]?.ptyIdsByLeafId?.[
+          pane.leafId
+        ]
+      ).toBe('winner')
+    }
+  )
+
+  it('does not readmit a recovered pane closed during lazy launch preparation', async () => {
+    const lanes = startParityLanes(suite, { workspace: POSIX_REPO })
+    const binding = {
+      worktreeId: launchWorkspaceId(POSIX_REPO),
+      tabId: HOST_TAB_ID,
+      leafId: HOST_LEAF_ID,
+      ptyId: 'absent-before-preparation'
+    }
+    await lanes.store.persistPtyBinding(binding)
+    lanes.provider.mockRejectedValueOnce(new SessionNotFoundError(binding.ptyId))
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const plan = teamsPlan.buildRuntimeAgentTeamsLaunchPlan
+    const preparing = vi
+      .spyOn(teamsPlan, 'buildRuntimeAgentTeamsLaunchPlan')
+      .mockImplementation(async (args) => {
+        await gate
+        return plan(args)
+      })
+    try {
+      const created = lanes.runtime.createTerminal(`id:${binding.worktreeId}`, {
+        tabId: HOST_TAB_ID,
+        leafId: HOST_LEAF_ID
+      })
+      const refused = expect(created).rejects.toThrow('terminal_pane_owner_changed')
+      await vi.waitFor(() => expect(preparing).toHaveBeenCalledOnce())
+      await lanes.store.withdrawTerminalPane({
+        type: 'closePane',
+        workspace: binding.worktreeId,
+        tabId: HOST_TAB_ID,
+        leafId: HOST_LEAF_ID
+      })
+      release()
+      await refused
+      expect(lanes.provider).toHaveBeenCalledOnce()
+      expect(lanes.store.getWorkspaceSession().terminalLayoutsByTabId[HOST_TAB_ID]).toBeUndefined()
+      expect(lanes.reveal).not.toHaveBeenCalled()
+    } finally {
+      release()
+      preparing.mockRestore()
+    }
+  })
+
   // C5a (one agent_error place): main today reports a failed window-lane spawn.
   it.each([
     {
@@ -340,6 +430,7 @@ describe('launch facts outside the tables', () => {
           release()
         }
       })
+      const beginRegistration = vi.spyOn(lanes.runtime, 'beginPtyRegistration')
       const cancelRegistration = vi.spyOn(lanes.runtime, 'cancelPendingPtyRegistration')
       const worktreeId = launchWorkspaceId(POSIX_REPO)
       const launch =
@@ -362,7 +453,12 @@ describe('launch facts outside the tables', () => {
       expect(trackMock.mock.calls).toEqual(FAILED_START_AGENT_ERROR[lane])
       expect(hiddenWhileSpawning).toBe(true)
       expect(isHiddenRendererPty(sessionId)).toBe(false)
-      expect(cancelRegistration.mock.calls).toEqual([[sessionId, undefined]])
+      const claim =
+        beginRegistration.mock.results[
+          beginRegistration.mock.calls.findIndex(([id]) => id === sessionId)
+        ]?.value
+      expect(claim).toBeDefined()
+      expect(cancelRegistration.mock.calls).toEqual([[sessionId, undefined, claim]])
       expect(gateReleased).toHaveBeenCalledOnce()
       expect(ptySizes.has(sessionId)).toBe(false)
       const paneKey = makePaneKey(HOST_TAB_ID, HOST_LEAF_ID)
