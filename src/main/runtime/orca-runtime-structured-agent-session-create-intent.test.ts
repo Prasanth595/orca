@@ -1,5 +1,5 @@
 import { prepareAdoptedTranscript } from '../native-chat/agent-session-wire/structured-agent-session-adopted-import'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -352,7 +352,7 @@ describe('structured agent-session create intent', () => {
 
 describe('adopting a conversation recorded outside Orca', () => {
   it('resolves OMP history with the configured launch environment', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'orca-omp-create-intent-'))
+    const root = await mkdtemp(join(await realpath(tmpdir()), 'orca-omp-create-intent-'))
     try {
       const accountHome = join(root, 'account', 'agent')
       const ambientData = join(root, 'ambient-data')
@@ -453,7 +453,7 @@ describe('adopting a conversation recorded outside Orca', () => {
   })
 
   it('adopts the original Pi file into a folder workspace and refuses another folder', async () => {
-    const accountHome = await mkdtemp(join(tmpdir(), 'orca-pi-adopt-intent-'))
+    const accountHome = await mkdtemp(join(await realpath(tmpdir()), 'orca-pi-adopt-intent-'))
     vi.stubEnv('PI_CODING_AGENT_DIR', accountHome)
     try {
       const file = join(

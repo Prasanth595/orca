@@ -1,4 +1,9 @@
 import { useCallback, useMemo, useState } from 'react'
+import { nativeChatTaskListPredecessors } from '../../../src/shared/native-chat-task-list-history'
+import {
+  MobileNativeChatDisclosureContext,
+  useMobileNativeChatDisclosures
+} from './mobile-native-chat-disclosure-store'
 import {
   ActivityIndicator,
   FlatList,
@@ -40,7 +45,10 @@ import {
 import { MobileNativeChatLiveLine } from './MobileNativeChatLiveLine'
 import { MobileNativeChatFloatingControls } from './MobileNativeChatFloatingControls'
 import type { PendingNativeChatImage } from './mobile-native-chat-image-attachment'
-import { MobileNativeChatComposer } from './MobileNativeChatComposer'
+import {
+  MobileNativeChatComposer,
+  type MobileNativeChatStructuredComposer
+} from './MobileNativeChatComposer'
 import { mobileNativeChatToolCallCount } from './mobile-native-chat-composer-layout'
 import { MobileNativeChatPromptCard } from './MobileNativeChatPromptCard'
 import { NO_COMPOSER_TRAY, type ComposerTrayProps } from './use-mobile-native-chat-composer-tray'
@@ -125,6 +133,8 @@ type Props = ComposerTrayProps & {
   onNeedFiles?: (query: string) => void
   /** Model/session-option pickers for the composer action row (desktop parity). */
   sessionOptions?: MobileNativeChatSessionOptionPickersProps | null
+  /** A structured chat's + sheet, files and skills; absent on a terminal-backed chat. */
+  structuredComposer?: MobileNativeChatStructuredComposer | null
   /** A pending agent question/permission detected from live status, shown as a
    *  native card above the composer; answering sends text to the agent. */
   /** Structured AskUserQuestion prompt parsed from the transcript (preferred over
@@ -200,6 +210,7 @@ export function MobileNativeChatView({
   filePaths,
   onNeedFiles,
   sessionOptions,
+  structuredComposer = null,
   ask,
   askKey,
   onDismissAsk,
@@ -284,8 +295,7 @@ export function MobileNativeChatView({
   )
 
   // Per-turn status rows: one live indicator while the turn runs, then a settled
-  // "Worked for N" row. The structured lane owns them; the bridge lane keeps its
-  // three-dot indicator.
+  // "Worked for N" row. The structured lane owns them; the bridge lane gets the live line only.
   const turns = useMobileNativeChatTurnDisclosure({
     messages: data,
     enabled: structuredActivityUi,
@@ -297,12 +307,17 @@ export function MobileNativeChatView({
     activityText: turnIndicator?.activityText ?? null,
     // The display status, decided once in the session hook.
     stopping: turnIndicator?.stopping === true,
-    lineYields: structuredActivityUi && (ask != null || permission != null || question != null),
+    lineYields: ask != null || permission != null || question != null,
+    receipts,
     scopeKey: sendSurfaceId
   })
 
+  // What the reader opened in this chat's runs, kept above the rows the list recycles.
+  const disclosures = useMobileNativeChatDisclosures(sendSurfaceId)
+  const taskListPredecessors = useMemo(() => nativeChatTaskListPredecessors(data), [data])
   const renderItem = useMobileNativeChatRowRenderer({
     toolsExpanded,
+    taskListPredecessors,
     fontScale,
     onOpenFile,
     structuredActivityUi,
@@ -323,7 +338,6 @@ export function MobileNativeChatView({
       onOpenFile={onOpenFile}
     />
   ) : null
-  const bridgeWorking = agentWorking === true && !structuredActivityUi
   const toolCallCount = useMemo(() => mobileNativeChatToolCallCount(folded), [folded])
   const toggleTools = useCallback(() => setToolsExpanded((v) => !v), [])
 
@@ -355,44 +369,43 @@ export function MobileNativeChatView({
         </View>
       ) : (
         <GestureHandlerRootView style={styles.listWrap}>
-          <MobileNativeChatScrollHold headKey={turns.listMessages[0]?.id} listRef={listRef} />
-          <GestureDetector gesture={pinchGesture}>
-            <FlatList
-              ref={listRef}
-              data={history.listRows}
-              keyExtractor={(item) => item.id}
-              renderItem={history.renderListRow}
-              contentContainerStyle={
-                toolCallCount > 0 || bridgeWorking
-                  ? styles.listContentUnderFloatingControls
-                  : styles.listContent
-              }
-              // Let link/file taps land while the composer keyboard is up
-              // instead of being swallowed by the dismiss gesture.
-              keyboardShouldPersistTaps="handled"
-              onScroll={onScroll}
-              onScrollBeginDrag={beginUserScroll}
-              onScrollEndDrag={endUserDrag}
-              onMomentumScrollBegin={beginMomentum}
-              onMomentumScrollEnd={endMomentum}
-              scrollEventThrottle={32}
-              onContentSizeChange={pinToTailAfterContentResize}
-              onLayout={pinToTail}
-              maintainVisibleContentPosition={mobileNativeChatRowAnchor(hasMore === true)}
-              ListHeaderComponent={history.withHistory(
-                mobileNativeChatListHeader(hasMore, loadingEarlier, loadEarlier)
-              )}
-              ListFooterComponent={mobileNativeChatListFooter(
-                liveStatus,
-                turns.waitingRows,
-                renderItem
-              )}
-              ListEmptyComponent={emptyStateView}
-            />
-          </GestureDetector>
+          <MobileNativeChatDisclosureContext.Provider value={disclosures}>
+            <MobileNativeChatScrollHold headKey={turns.listMessages[0]?.id} listRef={listRef} />
+            <GestureDetector gesture={pinchGesture}>
+              <FlatList
+                ref={listRef}
+                data={history.listRows}
+                keyExtractor={(item) => item.id}
+                renderItem={history.renderListRow}
+                contentContainerStyle={
+                  toolCallCount > 0 ? styles.listContentUnderFloatingControls : styles.listContent
+                }
+                // Let link/file taps land while the composer keyboard is up
+                // instead of being swallowed by the dismiss gesture.
+                keyboardShouldPersistTaps="handled"
+                onScroll={onScroll}
+                onScrollBeginDrag={beginUserScroll}
+                onScrollEndDrag={endUserDrag}
+                onMomentumScrollBegin={beginMomentum}
+                onMomentumScrollEnd={endMomentum}
+                scrollEventThrottle={32}
+                onContentSizeChange={pinToTailAfterContentResize}
+                onLayout={pinToTail}
+                maintainVisibleContentPosition={mobileNativeChatRowAnchor(hasMore === true)}
+                ListHeaderComponent={history.withHistory(
+                  mobileNativeChatListHeader(hasMore, loadingEarlier, loadEarlier)
+                )}
+                ListFooterComponent={mobileNativeChatListFooter(
+                  liveStatus,
+                  turns.waitingRows,
+                  renderItem
+                )}
+                ListEmptyComponent={emptyStateView}
+              />
+            </GestureDetector>
+          </MobileNativeChatDisclosureContext.Provider>
           <MobileNativeChatFloatingControls
             toolCallCount={toolCallCount}
-            bridgeWorking={bridgeWorking}
             toolsExpanded={toolsExpanded}
             onToggleTools={toggleTools}
             showJumpToTail={showJumpToTail}
@@ -400,7 +413,6 @@ export function MobileNativeChatView({
           />
         </GestureHandlerRootView>
       )}
-      {trayContent}
       <MobileNativeChatPromptCard
         key={promptKey ?? undefined}
         {...{ ask, askKey, onDismissAsk, onAnswerAsk, onCancelAsk, onCancelPrompt, onCollapseAsk }}
@@ -417,10 +429,10 @@ export function MobileNativeChatView({
           <Text style={styles.sendErrorText}>{sendErrorMessage}</Text>
         </View>
       ) : null}
+      {/* Directly on the composer, which it tucks into. */}
+      {trayContent}
       <MobileNativeChatComposer
-        structuredCommands={
-          structuredActivityUi ? (sessionOptions?.controller.conversationCommands ?? []) : undefined
-        }
+        structured={structuredActivityUi ? structuredComposer : null}
         value={composerText}
         onChangeText={onComposerTextChange}
         onSend={handleSend}
@@ -439,7 +451,11 @@ export function MobileNativeChatView({
         onMicPressOut={onMicPressOut}
         disabled={lockReason !== null}
         sendDisabled={expandedPromptOwnsSend}
-        placeholder={mobileNativeChatComposerPlaceholder(lockReason, turnIndicator?.afterStop)}
+        placeholder={mobileNativeChatComposerPlaceholder(
+          lockReason,
+          turnIndicator?.afterStop,
+          agent
+        )}
         filePaths={filePaths}
         onNeedFiles={onNeedFiles}
         stop={

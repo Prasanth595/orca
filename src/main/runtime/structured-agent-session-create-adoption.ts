@@ -9,7 +9,10 @@ import type { StructuredAgentSessionResumeSource } from '../../shared/structured
 import type { StructuredAgentCliSourceEvidence } from '../native-chat/structured-agent-cli-source'
 import type { AgentSessionAccountHome } from '../../shared/agent-session-account-home'
 import type { AgentSessionExecutionLocation } from '../../shared/agent-session-record'
-import type { StructuredAgentId } from '../../shared/agent-session-provider-handle'
+import type {
+  AgentSessionProviderHandle,
+  StructuredAgentId
+} from '../../shared/agent-session-provider-handle'
 import { agentSessionExecutionLocationsEqual } from '../../shared/agent-session-record'
 import type { AgentSessionAttachParams } from '../native-chat/agent-session-wire/structured-agent-session-attach'
 import type { StructuredAgentSessionHost } from '../native-chat/agent-session-wire/structured-agent-session-host'
@@ -206,5 +209,28 @@ export async function resolveStructuredAgentSessionAdoptionForCreate(input: {
       { reason: 'transcriptUnreadable' },
       error instanceof Error ? error.message : String(error)
     )
+  }
+}
+
+/** `adopt` is what makes the reservation seed the handle chain. Presence of `providerHandle` alone
+ *  must not: `agentSession.ensure` already passes one today without adopting anything. */
+export function structuredAgentSessionAdoptAttach(input: {
+  definition: {
+    handleTransport: AgentSessionProviderHandle['transport']
+    agent: AgentSessionProviderHandle['agent']
+  }
+  handleNamesTranscript: boolean | undefined
+  transcriptPath: string
+  providerSessionId: string
+  workspaceCwd: string
+}): NonNullable<AgentSessionAttachParams['adopt']> {
+  return {
+    providerHandle: {
+      transport: input.definition.handleTransport,
+      agent: input.definition.agent,
+      nativeId: input.handleNamesTranscript ? input.transcriptPath : input.providerSessionId
+    },
+    transcriptPath: input.transcriptPath,
+    source: { providerSessionId: input.providerSessionId, workspaceCwd: input.workspaceCwd }
   }
 }
