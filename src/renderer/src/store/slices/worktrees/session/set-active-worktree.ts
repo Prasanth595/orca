@@ -18,6 +18,8 @@ import {
 import { findKnownWorktreeById } from '../listing/detected-worktree-meta'
 import { resolveActivatedWorktreeSurface } from './active-worktree-surface'
 import { clearWorktreeSleepIntent } from '@/lib/worktree-sleep-intent'
+import { withoutSleptChatsForWorkspaces } from '../../../../../../shared/workspace-chat-sleep'
+import { supersedeChatSleepAttempt } from './workspace-chat-sleep-attempt'
 import {
   pendingActivationTerminalPrepCancels,
   shouldDeferActivationTerminalPrep
@@ -116,6 +118,10 @@ export function createSetActiveWorktree(
         allDead && worktreeId != null
           ? markWorktreeTabsForActivationSpawn(s, worktreeId, { isWakeable, bumpGeneration: true })
           : {}
+      // Why every host: opening either copy wakes the whole workspace, as it does its terminals.
+      const nextSleptChats = withoutSleptChatsForWorkspaces(s.explicitlySleptChatsByWorkspace, [
+        { id: worktreeId }
+      ])
 
       const nextActiveTabTypeByWorktree =
         s.activeTabTypeByWorktree[worktreeId] === activeTabType
@@ -134,6 +140,7 @@ export function createSetActiveWorktree(
         nextActiveTabTypeByWorktree !== s.activeTabTypeByWorktree ||
         nextEverActivated !== s.everActivatedWorktreeIds ||
         nextActiveRepoId !== s.activeRepoId ||
+        nextSleptChats !== s.explicitlySleptChatsByWorkspace ||
         allDead ||
         reconciliationChanged ||
         stateTransition !== undefined
@@ -159,13 +166,19 @@ export function createSetActiveWorktree(
         rightSidebarExplorerView: restoredRightSidebarExplorerView,
         activeTabId,
         everActivatedWorktreeIds: nextEverActivated,
-        ...tabsByWorktreeUpdate
+        ...tabsByWorktreeUpdate,
+        ...(nextSleptChats !== s.explicitlySleptChatsByWorkspace
+          ? { explicitlySleptChatsByWorkspace: nextSleptChats }
+          : {})
       }
     })
 
     // Why: any activation is an explicit wake (null is the sleep flow clearing selection).
     // Cleared after the set() above so a pane still waiting on the marker connects once,
     // in the remounted generation, instead of connecting and then being remounted.
+    if (worktreeId) {
+      supersedeChatSleepAttempt(worktreeId)
+    }
     clearWorktreeSleepIntent(worktreeId)
 
     if (worktreeId && shouldPrepareTerminalTabs) {
