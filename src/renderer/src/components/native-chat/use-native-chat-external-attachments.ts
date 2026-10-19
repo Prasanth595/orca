@@ -99,6 +99,8 @@ export function useNativeChatExternalAttachments({
   // re-ask the workspace the upload started in — a comparison with itself.
   const sessionId = structuredSession?.sessionId
   const runtimeEnvironmentId = structuredSession?.runtimeEnvironmentId ?? null
+  const sessionPending = structuredSession?.sessionPending === true
+  const sessionPendingNotice = structuredSession?.sessionPendingNotice
   const workspaceRef = useRef<ComposerWorkspace>({
     structuredWorktreeId,
     terminalTabId,
@@ -108,17 +110,29 @@ export function useNativeChatExternalAttachments({
     workspaceRef.current = {
       structuredWorktreeId,
       terminalTabId,
-      structuredSession: sessionId ? { sessionId, runtimeEnvironmentId } : undefined
+      structuredSession: sessionId
+        ? { sessionId, runtimeEnvironmentId, sessionPending, sessionPendingNotice }
+        : undefined
     }
-  }, [runtimeEnvironmentId, sessionId, structuredWorktreeId, terminalTabId])
+  }, [
+    runtimeEnvironmentId,
+    sessionId,
+    sessionPending,
+    sessionPendingNotice,
+    structuredWorktreeId,
+    terminalTabId
+  ])
   const pendingChipsRef = useRef(pendingChips)
   useLayoutEffect(() => {
     pendingChipsRef.current = pendingChips
   }, [pendingChips])
 
-  const resolveAttachmentOwner = useCallback(() => {
+  const resolveAttachmentOwner = useCallback((): NativeChatAttachmentOwner => {
     const { structuredWorktreeId, structuredSession, terminalTabId } = workspaceRef.current
     if (structuredWorktreeId && structuredSession?.runtimeEnvironmentId) {
+      if (structuredSession.sessionPending) {
+        return { kind: 'not-ready', notice: structuredSession.sessionPendingNotice }
+      }
       return resolveNativeChatRuntimeSessionAttachmentOwner({
         sessionId: structuredSession.sessionId,
         runtimeEnvironmentId: structuredSession.runtimeEnvironmentId
@@ -152,7 +166,7 @@ export function useNativeChatExternalAttachments({
           return nativeChatAttachmentOwnerChangedNotice()
         }
         if (owner.kind === 'not-ready') {
-          return nativeChatWorktreeNotReadyNotice()
+          return owner.notice ?? nativeChatWorktreeNotReadyNotice()
         }
         if (owner.kind === 'remote') {
           return nativeChatLocalAttachmentUnsupportedNotice()
