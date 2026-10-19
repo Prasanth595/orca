@@ -28,10 +28,24 @@ const queue = new PRRefreshQueue((key) => retry.reset(key))
 const pacing = new PRRefreshPacing()
 const visibility = new PRRefreshVisibility()
 const events = new PRRefreshEventPublisher()
-const drainer = new PRRefreshQueueDrainer(queue, pacing, visibility, retry, events)
+let registrationCheck: ((candidate: GitHubPRRefreshCandidate) => boolean) | null = null
+const drainer = new PRRefreshQueueDrainer(
+  queue,
+  pacing,
+  visibility,
+  retry,
+  events,
+  (candidate) => registrationCheck?.(candidate) ?? true
+)
 
 export function setPRRefreshOutcomeObserver(observer: PRRefreshOutcomeObserver | null): void {
   events.setOutcomeObserver(observer)
+}
+
+export function setPRRefreshRegistrationCheck(
+  check: ((candidate: GitHubPRRefreshCandidate) => boolean) | null
+): void {
+  registrationCheck = check
 }
 
 function removeInvisibleVisibleRefreshes(): void {

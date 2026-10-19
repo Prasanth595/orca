@@ -30,7 +30,9 @@ export class PRRefreshQueueDrainer {
     private readonly pacing: PRRefreshPacing,
     private readonly visibility: PRRefreshVisibility,
     private readonly retry: PRRefreshRetryState,
-    private readonly events: PRRefreshEventPublisher
+    private readonly events: PRRefreshEventPublisher,
+    // Why: queued work can outlive its project; re-check on every removal path before Git runs.
+    private readonly isCandidateRegistered: (candidate: GitHubPRRefreshCandidate) => boolean
   ) {}
 
   schedule(delay = 0): void {
@@ -168,6 +170,15 @@ export class PRRefreshQueueDrainer {
         if (skippedReason) {
           this.events.record('skipped', next.reason, skippedReason)
           this.events.broadcast({ aliases, reason: next.reason, status: 'skipped', skippedReason })
+          continue
+        }
+        if (!this.isCandidateRegistered(next.candidate)) {
+          this.events.broadcast({
+            aliases,
+            reason: next.reason,
+            status: 'skipped',
+            skippedReason: 'fresh'
+          })
           continue
         }
         if (next.reason === 'visible' && !this.visibility.has(next.key)) {

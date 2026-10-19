@@ -13,7 +13,8 @@ import {
   enqueuePRRefresh,
   refreshPRNow,
   reportVisiblePRRefreshCandidates,
-  setPRRefreshOutcomeObserver
+  setPRRefreshOutcomeObserver,
+  setPRRefreshRegistrationCheck
 } from '../github/pr-refresh-coordinator'
 import type { Store } from '../persistence'
 import type { StatsCollector } from '../stats/collector'
@@ -47,6 +48,9 @@ export function registerGitHubPRRefreshHandlers(store: Store, stats: StatsCollec
       recordPRIfNeeded(repo, outcome)
     }
   })
+  setPRRefreshRegistrationCheck(
+    (candidate) => validateAutomaticPRRefreshCandidate(candidate, store).kind === 'ok'
+  )
 
   ipcMain.handle(
     'gh:prForBranch',
