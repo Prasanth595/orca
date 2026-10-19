@@ -56,7 +56,9 @@ export function notifyTerminalSurfaceTap(
   }
   const clickInput = buildMouseClickInput(scope, originX, originY)
   if (clickInput) {
-    notify(scope, { type: 'terminal-input', bytes: clickInput })
+    // Why `click`: the program may move its cursor to this cell, so text the phone still holds
+    // for the old cursor has to land before it and the live field restarts at the new one.
+    notify(scope, { type: 'terminal-input', bytes: clickInput, click: true })
   }
   // Touch still needs native input focus after the TUI consumes its mouse click.
   // A click with an unproven encoding reached no program, so it acts as a plain tap.
