@@ -1,23 +1,10 @@
 import * as pty from 'node-pty'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type * as WindowsProcessTable from '../windows/windows-process-table'
 
 const { resolveForegroundMock } = vi.hoisted(() => ({ resolveForegroundMock: vi.fn() }))
 const jobMembers = vi.hoisted(() => vi.fn())
 vi.mock('./windows-pty-job-membership', () => ({
-  readWindowsPtyJobProcessIds: jobMembers,
-  isWindowsPtyJobReadable: () => true
-}))
-
-// The pane's shell and one live child, so a two-member job reads as a running command.
-const windowsRows = vi.hoisted(() => [
-  { pid: 4242, ppid: 1, name: 'powershell.exe' },
-  { pid: 4243, ppid: 4242, name: 'node.exe' }
-])
-vi.mock('../windows/windows-process-table', async (importOriginal) => ({
-  ...(await importOriginal<typeof WindowsProcessTable>()),
-  readWindowsProcessIdentityTable: async () => windowsRows,
-  readWindowsProcessIdentityTableFresh: async () => windowsRows
+  readWindowsPtyJobProcessIds: jobMembers, isWindowsPtyJobReadable: () => true
 }))
 
 const { confirmShellForegroundMock } = vi.hoisted(() => ({
@@ -181,33 +168,15 @@ describe('inspectPtyProviderProcess child-process evidence', () => {
   it('uses the owned Windows job without a static-name marker, preserving uncertain and replaced panes', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     registerPane('pty-win', 'powershell.exe', 'powershell.exe')
-    const inspect = () =>
-      inspectPtyProviderProcess(provider, 'pty-win', {
-        expectedIncarnationId: 'incarnation:pty-win'
-      })
+    const inspect = () => inspectPtyProviderProcess(provider, 'pty-win', { expectedIncarnationId: 'incarnation:pty-win' })
     jobMembers.mockReturnValue(new Set([4242]))
-    await expect(inspect()).resolves.toMatchObject({
-      childProcessEvidence: 'no-children',
-      hasChildProcesses: false
-    })
+    await expect(inspect()).resolves.toMatchObject({ childProcessEvidence: 'no-children', hasChildProcesses: false })
     jobMembers.mockReturnValue(new Set([4242, 4243]))
-    await expect(inspect()).resolves.toMatchObject({
-      childProcessEvidence: 'children',
-      hasChildProcesses: true
-    })
+    await expect(inspect()).resolves.toMatchObject({ childProcessEvidence: 'children', hasChildProcesses: true })
     jobMembers.mockReturnValue(null)
-    await expect(inspect()).resolves.toMatchObject({
-      childProcessEvidence: 'unverifiable',
-      hasChildProcesses: true
-    })
-    jobMembers.mockImplementationOnce(() => {
-      registerPane('pty-win', 'powershell.exe', 'powershell.exe')
-      return new Set([4242])
-    })
-    await expect(inspect()).resolves.toMatchObject({
-      childProcessEvidence: 'unverifiable',
-      hasChildProcesses: true
-    })
+    await expect(inspect()).resolves.toMatchObject({ childProcessEvidence: 'unverifiable', hasChildProcesses: true })
+    jobMembers.mockImplementationOnce(() => { registerPane('pty-win', 'powershell.exe', 'powershell.exe'); return new Set([4242]) })
+    await expect(inspect()).resolves.toMatchObject({ childProcessEvidence: 'unverifiable', hasChildProcesses: true })
   })
 
   it('carries unverifiable evidence when the child read fails after foreground inspection', async () => {
