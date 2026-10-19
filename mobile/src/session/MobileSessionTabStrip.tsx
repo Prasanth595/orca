@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { useCallback } from 'react'
 import { View, Text, ScrollView, Pressable } from 'react-native'
 import { File, FileText, Globe, Plus, SquareTerminal } from 'lucide-react-native'
@@ -21,6 +22,8 @@ export function MobileSessionTabStrip({
   controller: MobileSessionController
   inTopBar: boolean
 }) {
+  useMobileTheme()
+
   const {
     connState,
     activeSessionTabId,

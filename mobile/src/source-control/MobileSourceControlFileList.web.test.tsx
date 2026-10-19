@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import { processColor } from 'react-native'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MobileSourceControlFileList, type FileListState } from './MobileSourceControlFileList'
+import { applyMobileColorScheme, darkColors, lightColors } from '../theme/mobile-theme'
 
 vi.mock('react-native', () => vi.importActual<typeof import('react-native')>('react-native-web'))
 vi.mock('lucide-react-native', () => ({
@@ -90,6 +92,57 @@ describe('source-control file virtualization in the mobile web page', () => {
   afterEach(async () => {
     await act(async () => root.unmount())
     container.remove()
+    applyMobileColorScheme('dark')
+  })
+
+  it('repaints a mounted virtualized list without replacing rows or their actions', async () => {
+    const state = fileListState(1_000, true)
+    await act(async () => {
+      root.render(createElement(MobileSourceControlFileList, { state }))
+    })
+    const firstRow = container.querySelector(
+      '[aria-label="Open committed change src/committed-0.ts"]'
+    )
+    const textNode = (text: string) => {
+      const node = Array.from(container.querySelectorAll('*')).find(
+        (element) =>
+          element.childNodes.length === 1 &&
+          element.firstChild?.nodeType === Node.TEXT_NODE &&
+          element.textContent === text
+      )
+      if (!(node instanceof HTMLElement)) {
+        throw new Error(`Missing text: ${text}`)
+      }
+      return node
+    }
+    const swatch = document.createElement('span')
+    document.body.append(swatch)
+    try {
+      for (const scheme of ['light', 'dark', 'light'] as const) {
+        await act(async () => applyMobileColorScheme(scheme))
+        const palette = scheme === 'light' ? lightColors : darkColors
+        for (const text of ['Changes', 'Committed on Branch', 'src/committed-0.ts']) {
+          swatch.style.color =
+            text === 'src/committed-0.ts' ? palette.textPrimary : palette.textSecondary
+          expect(processColor(getComputedStyle(textNode(text)).color)).toBe(
+            processColor(swatch.style.color)
+          )
+        }
+        expect(
+          container.querySelector('[aria-label="Open committed change src/committed-0.ts"]')
+        ).toBe(firstRow)
+        expect(
+          container.querySelectorAll('[aria-label^="Open committed change "]').length
+        ).toBeLessThan(50)
+      }
+      if (!(firstRow instanceof HTMLElement)) {
+        throw new Error('Missing committed row')
+      }
+      await act(async () => firstRow.click())
+      expect(state.openBranchDiff).toHaveBeenCalledExactlyOnceWith(state.branchEntries[0])
+    } finally {
+      swatch.remove()
+    }
   })
 
   it.each([false, true])(

@@ -1,9 +1,13 @@
+import { createThemedStyles } from '../theme/mobile-themed-styles'
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import { colors, spacing, typography } from '../theme/mobile-theme'
 import type { SectionPendingCreation } from '../worktree/workspace-list-types'
 
 /** A workspace the host is creating, where the desktop's sidebar shows its pending row. */
 export function HostPendingCreationRow({ creation }: { creation: SectionPendingCreation }) {
+  useMobileTheme()
+
   return (
     <View style={styles.row} accessibilityRole="progressbar">
       <View style={styles.indicator}>
@@ -23,33 +27,35 @@ export function HostPendingCreationRow({ creation }: { creation: SectionPendingC
   )
 }
 
-const styles = StyleSheet.create({
-  // The workspace row's padding and indicator column, so the finished row lands in place.
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.sm + 2,
-    paddingLeft: spacing.lg,
-    paddingRight: spacing.lg,
-    borderLeftWidth: 2,
-    borderLeftColor: 'transparent'
-  },
-  indicator: {
-    width: 20,
-    alignItems: 'center',
-    marginRight: spacing.sm
-  },
-  main: {
-    flex: 1
-  },
-  title: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textSecondary
-  },
-  meta: {
-    marginTop: 2,
-    color: colors.textMuted,
-    fontSize: typography.metaSize
-  }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    // The workspace row's padding and indicator column, so the finished row lands in place.
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.sm + 2,
+      paddingLeft: spacing.lg,
+      paddingRight: spacing.lg,
+      borderLeftWidth: 2,
+      borderLeftColor: 'transparent'
+    },
+    indicator: {
+      width: 20,
+      alignItems: 'center',
+      marginRight: spacing.sm
+    },
+    main: {
+      flex: 1
+    },
+    title: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textSecondary
+    },
+    meta: {
+      marginTop: 2,
+      color: colors.textMuted,
+      fontSize: typography.metaSize
+    }
+  })
+)

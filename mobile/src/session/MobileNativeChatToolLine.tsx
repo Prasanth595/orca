@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { useMemo } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { ChevronRight } from 'lucide-react-native'
@@ -167,6 +168,8 @@ export function MobileNativeChatToolLine({
   fontScale: number
   onOpenFile?: (path: string) => void
 }): React.JSX.Element {
+  useMobileTheme()
+
   const [expanded, setExpanded] = useMobileNativeChatDisclosure(disclosureKey, defaultExpanded)
   const call = isToolCallBlock(block) ? block : undefined
   const label = call ? nativeChatToolLineLabel(call, result) : null

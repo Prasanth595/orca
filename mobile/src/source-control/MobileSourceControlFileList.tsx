@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { SectionList, Text, View } from 'react-native'
 import {
   BranchCompareHeader,
@@ -37,6 +38,8 @@ export type FileListState = Pick<
 >
 
 export function MobileSourceControlFileList({ state }: { state: FileListState }) {
+  useMobileTheme()
+
   const sections: FileSection[] = state.sections.map((section) => ({
     ...section,
     key: section.area

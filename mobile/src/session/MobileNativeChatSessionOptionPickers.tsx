@@ -1,3 +1,5 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
+import { createThemedStyles } from '../theme/mobile-themed-styles'
 import { ActivityIndicator, Keyboard, Pressable, StyleSheet, Text, View } from 'react-native'
 import { ChevronLeft, X } from 'lucide-react-native'
 import { BottomDrawer } from '../components/BottomDrawer'
@@ -72,6 +74,7 @@ export function MobileNativeChatSessionOptionPickers({
   onDrawerOpen,
   onDrawerAfterClose
 }: MobileNativeChatSessionOptionPickersProps & PresentationProps): React.JSX.Element | null {
+  useMobileTheme()
   const { snapshot, pendingId } = controller
   const model = snapshot.find((descriptor) => descriptor.category === 'model')
   const permission = snapshot.find(
@@ -231,6 +234,7 @@ function OptionRows({
   onNavigate: (page: string) => void
   onSetOption: (descriptor: SessionOptionDescriptor, value: SessionOptionValue) => void
 }): React.JSX.Element | null {
+  useMobileTheme()
   if (descriptors.length === 0) {
     return null
   }
@@ -271,56 +275,58 @@ function OptionRows({
   )
 }
 
-const styles = StyleSheet.create({
-  // The action row's only shrinkable item: a long label truncates before it pushes Send off.
-  pillSlot: {
-    flexShrink: 1,
-    minWidth: 0
-  },
-  sheet: {
-    paddingBottom: spacing.xs
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingBottom: spacing.lg
-  },
-  sheetTitle: {
-    flex: 1,
-    color: colors.textPrimary,
-    fontSize: typography.titleSize,
-    fontWeight: '700',
-    textAlign: 'center'
-  },
-  sheetNav: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.bgRaised,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle
-  },
-  sheetHeaderSide: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  group: {
-    overflow: 'hidden',
-    borderRadius: radii.card,
-    backgroundColor: colors.bgRaised
-  },
-  groupSpaced: {
-    marginTop: spacing.md
-  },
-  divided: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.composerBorder
-  },
-  pressed: {
-    opacity: 0.7
-  }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    // The action row's only shrinkable item: a long label truncates before it pushes Send off.
+    pillSlot: {
+      flexShrink: 1,
+      minWidth: 0
+    },
+    sheet: {
+      paddingBottom: spacing.xs
+    },
+    sheetHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingBottom: spacing.lg
+    },
+    sheetTitle: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: typography.titleSize,
+      fontWeight: '700',
+      textAlign: 'center'
+    },
+    sheetNav: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.bgRaised,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSubtle
+    },
+    sheetHeaderSide: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    group: {
+      overflow: 'hidden',
+      borderRadius: radii.card,
+      backgroundColor: colors.bgRaised
+    },
+    groupSpaced: {
+      marginTop: spacing.md
+    },
+    divided: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.composerBorder
+    },
+    pressed: {
+      opacity: 0.7
+    }
+  })
+)

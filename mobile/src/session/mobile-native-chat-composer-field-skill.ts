@@ -1,3 +1,4 @@
+import { createThemedStyles } from '../theme/mobile-themed-styles'
 import { StyleSheet, type TextInput, type TextInputProps } from 'react-native'
 import { colors } from '../theme/mobile-theme'
 
@@ -14,9 +15,11 @@ export type MobileNativeChatComposerFieldProps = Omit<
 
 /** The picked skill at the start of the draft. Same font as the text around it: on the page a copy
  *  over the field draws it, so the token must take the width the field gives it. */
-export const mobileNativeChatComposerSkillStyles = StyleSheet.create({
-  token: {
-    color: colors.skillToken,
-    backgroundColor: colors.skillTokenSurface
-  }
-})
+export const mobileNativeChatComposerSkillStyles = createThemedStyles(() =>
+  StyleSheet.create({
+    token: {
+      color: colors.skillToken,
+      backgroundColor: colors.skillTokenSurface
+    }
+  })
+)

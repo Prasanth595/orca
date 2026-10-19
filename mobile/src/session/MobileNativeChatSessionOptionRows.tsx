@@ -1,3 +1,5 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
+import { createThemedStyles } from '../theme/mobile-themed-styles'
 // The pill and choice-row primitives the session-option card is built from, kept
 // beside it so the card file stays about layout and apply wiring.
 
@@ -13,6 +15,7 @@ import {
 
 /** Muted one-liner above a group — dispatch state, or why a row is locked. */
 export function SessionOptionCaption({ children }: { children: string }): React.JSX.Element {
+  useMobileTheme()
   return <Text style={styles.caption}>{children}</Text>
 }
 
@@ -32,6 +35,7 @@ export function ModelPill({
   disabled: boolean
   onPress: () => void
 }): React.JSX.Element {
+  useMobileTheme()
   return (
     <Pressable
       accessibilityLabel={accessibleName}
@@ -70,6 +74,7 @@ function ChoiceRow({
   onPress: () => void
   labelColor?: string
 }): React.JSX.Element {
+  useMobileTheme()
   return (
     <Pressable
       accessibilityRole="radio"
@@ -113,6 +118,7 @@ function ToggleRow({
   grouped: boolean
   onToggle: (next: boolean) => void
 }): React.JSX.Element {
+  useMobileTheme()
   return (
     <View style={[styles.row, grouped && styles.rowGrouped, disabled && styles.rowDisabled]}>
       <View style={styles.rowBody}>
@@ -144,6 +150,7 @@ function ActionRow({
   grouped: boolean
   onPress: () => void
 }): React.JSX.Element {
+  useMobileTheme()
   return (
     <Pressable
       accessibilityRole="button"
@@ -175,6 +182,7 @@ export function SessionOptionSummaryRow({
   /** Absent for a value with no choice to make: the row reads as text, with no page behind it. */
   onPress?: () => void
 }): React.JSX.Element {
+  useMobileTheme()
   if (!onPress) {
     return (
       <View
@@ -231,6 +239,7 @@ export function DescriptorRows({
   /** A choice whose name reads in a colour of its own, as Full access does. */
   choiceLabelColor?: (value: string) => string | undefined
 }): React.JSX.Element {
+  useMobileTheme()
   const locked = disabled || !descriptor.settable
   // Why: flip-only without a baseline is an action — never claim On/Off.
   if (descriptor.action?.type === 'toggle-command') {
@@ -289,102 +298,104 @@ export function DescriptorRows({
   )
 }
 
-const styles = StyleSheet.create({
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 38,
-    paddingHorizontal: 14,
-    borderRadius: 19,
-    backgroundColor: colors.composerControl
-  },
-  pillText: {
-    flexShrink: 1,
-    fontSize: typography.bodySize
-  },
-  pillPrimary: {
-    color: colors.textPrimary,
-    fontWeight: '500'
-  },
-  pillSecondary: {
-    color: colors.textMuted
-  },
-  pillTextDisabled: {
-    color: colors.textMuted
-  },
-  pressed: {
-    opacity: 0.7
-  },
-  caption: {
-    color: colors.textMuted,
-    fontSize: typography.metaSize,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.xs
-  },
-  rowMarker: {
-    color: colors.textMuted,
-    fontSize: typography.metaSize
-  },
-  row: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingHorizontal: 14,
-    paddingVertical: spacing.sm,
-    minHeight: 50,
-    alignItems: 'center',
-    borderRadius: radii.card,
-    backgroundColor: colors.bgRaised,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    marginBottom: spacing.xs
-  },
-  rowSelected: {
-    borderColor: colors.textSecondary
-  },
-  rowGrouped: {
-    marginBottom: 0,
-    borderWidth: 0,
-    borderRadius: 0,
-    backgroundColor: 'transparent'
-  },
-  rowDivided: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.composerBorder
-  },
-  rowDisabled: {
-    opacity: 0.5
-  },
-  rowBody: {
-    flex: 1,
-    gap: 2
-  },
-  rowLabel: {
-    color: colors.textPrimary,
-    fontSize: typography.bodySize,
-    fontWeight: '600'
-  },
-  rowDescription: {
-    color: colors.textSecondary,
-    fontSize: typography.metaSize
-  },
-  summaryRow: {
-    minHeight: 50,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: 14,
-    paddingVertical: spacing.sm
-  },
-  summaryLabel: {
-    flex: 1,
-    color: colors.textPrimary,
-    fontSize: typography.bodySize,
-    fontWeight: '600'
-  },
-  summaryValue: {
-    maxWidth: 160,
-    color: colors.textSecondary,
-    fontSize: typography.bodySize
-  }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    pill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      height: 38,
+      paddingHorizontal: 14,
+      borderRadius: 19,
+      backgroundColor: colors.composerControl
+    },
+    pillText: {
+      flexShrink: 1,
+      fontSize: typography.bodySize
+    },
+    pillPrimary: {
+      color: colors.textPrimary,
+      fontWeight: '500'
+    },
+    pillSecondary: {
+      color: colors.textMuted
+    },
+    pillTextDisabled: {
+      color: colors.textMuted
+    },
+    pressed: {
+      opacity: 0.7
+    },
+    caption: {
+      color: colors.textMuted,
+      fontSize: typography.metaSize,
+      paddingHorizontal: spacing.md,
+      paddingBottom: spacing.xs
+    },
+    rowMarker: {
+      color: colors.textMuted,
+      fontSize: typography.metaSize
+    },
+    row: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      paddingHorizontal: 14,
+      paddingVertical: spacing.sm,
+      minHeight: 50,
+      alignItems: 'center',
+      borderRadius: radii.card,
+      backgroundColor: colors.bgRaised,
+      borderWidth: 1,
+      borderColor: colors.borderSubtle,
+      marginBottom: spacing.xs
+    },
+    rowSelected: {
+      borderColor: colors.textSecondary
+    },
+    rowGrouped: {
+      marginBottom: 0,
+      borderWidth: 0,
+      borderRadius: 0,
+      backgroundColor: 'transparent'
+    },
+    rowDivided: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.composerBorder
+    },
+    rowDisabled: {
+      opacity: 0.5
+    },
+    rowBody: {
+      flex: 1,
+      gap: 2
+    },
+    rowLabel: {
+      color: colors.textPrimary,
+      fontSize: typography.bodySize,
+      fontWeight: '600'
+    },
+    rowDescription: {
+      color: colors.textSecondary,
+      fontSize: typography.metaSize
+    },
+    summaryRow: {
+      minHeight: 50,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingHorizontal: 14,
+      paddingVertical: spacing.sm
+    },
+    summaryLabel: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: typography.bodySize,
+      fontWeight: '600'
+    },
+    summaryValue: {
+      maxWidth: 160,
+      color: colors.textSecondary,
+      fontSize: typography.bodySize
+    }
+  })
+)

@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { useMemo, type ReactNode } from 'react'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import { ChevronLeft } from 'lucide-react-native'
@@ -99,6 +100,7 @@ function WorkspaceOptionsContent({
   controller: HostScreenController
   pager: OptionPagerControls<WorkspaceViewOptionKey>
 }) {
+  useMobileTheme()
   const { settings, state } = controller
   const hosts = useWorkspaceOptionHosts(controller)
   const sections = getShownWorkspaceViewSections({

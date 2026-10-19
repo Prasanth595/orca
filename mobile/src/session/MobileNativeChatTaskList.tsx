@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { ChevronRight, Circle, CircleCheck, CircleDot, ListChecks } from 'lucide-react-native'
@@ -125,6 +126,8 @@ export function MobileNativeChatTaskList({
   previous?: TaskList
   fontScale: number
 }): React.JSX.Element {
+  useMobileTheme()
+
   const completed = list.tasks.filter((task) => task.status === 'completed').length
   const changes = previous ? diffNativeChatTaskLists(previous, list) : null
   const type = toolType(fontScale)

@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import { ChevronRight, FileText, Minus, Plus, Trash2 } from 'lucide-react-native'
 import { colors } from '../theme/mobile-theme'
@@ -25,6 +26,8 @@ export function makeRenderFileRow(state: RowState) {
   const { busyAction, openingPath, openingBranchPath, openFile, runGitAction, setDiscardTarget } =
     state
   return function FileRow({ item }: { item: MobileGitStatusEntryView }) {
+    useMobileTheme()
+
     const rowBusy =
       busyAction === item.stageActionId ||
       busyAction === item.unstageActionId ||
@@ -148,6 +151,8 @@ type BranchState = Pick<
 >
 
 export function BranchCompareHeader({ state }: { state: BranchState }) {
+  useMobileTheme()
+
   const {
     shouldShowBranchCompareSection,
     branchCompareSummaryText,
@@ -199,6 +204,8 @@ export function BranchFileRow({
   entry: MobileBranchEntryView
   state: BranchState
 }) {
+  useMobileTheme()
+
   const { busyAction, openBranchDiff, openingBranchPath, openingPath } = state
   const rowBusy = openingBranchPath === entry.path
   const rowDisabled =

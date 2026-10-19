@@ -9,7 +9,7 @@ import type {
   NativeChatMessage,
   NativeChatToolCallBlock
 } from '../../../src/shared/native-chat-types'
-import { colors } from '../theme/mobile-theme'
+import { applyMobileColorScheme, colors } from '../theme/mobile-theme'
 
 const scrolls = vi.hoisted(() => ({ toEnd: vi.fn(), to: vi.fn() }))
 
@@ -86,6 +86,7 @@ describe('ToolRun', () => {
   afterEach(() => {
     act(() => renderer?.unmount())
     renderer = null
+    applyMobileColorScheme('dark')
   })
 
   /** An opened run with its rows closed, as the turn caret leaves it. */
@@ -126,6 +127,23 @@ describe('ToolRun', () => {
       tree.root.findAll((node) => String(node.type) === 'Text' && textIn(node)[0] === text)[0]!
     const flatStyle = (node: ReactTestInstance): Record<string, unknown> =>
       Object.assign({}, ...[node.props.style].flat(Infinity).filter(Boolean))
+
+    it('updates an open run and its lines on a palette change without closing it', () => {
+      const tree = render([
+        { type: 'tool-call', name: 'Read', input: { file_path: 'src/index.ts' } },
+        { type: 'tool-result', output: 'contents' }
+      ])
+      const darkText = flatStyle(textNode(tree, 'Read')).color
+      act(() => applyMobileColorScheme('light'))
+      expect(flatStyle(textNode(tree, 'Read')).color).toBe(colors.textMuted)
+      expect(flatStyle(textNode(tree, 'Read')).color).not.toBe(darkText)
+      expect(flatStyle(textNode(tree, 'Read 1 file')).color).toBe(colors.textMuted)
+      const header = tree.root
+        .findAll((node) => String(node.type) === 'Pressable')
+        .find((node) => node.props.accessibilityLiveRegion === 'polite')!
+      expect(header.props.accessibilityState.expanded).toBe(true)
+      expect(textIn(tree.root)).toContain('index.ts')
+    })
 
     it('names a read by its verb and file, not its input', () => {
       const tree = render([

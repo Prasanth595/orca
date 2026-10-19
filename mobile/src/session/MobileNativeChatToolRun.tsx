@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import {
   useCallback,
   useContext,
@@ -228,6 +229,8 @@ export function ToolRun({
   fontScale?: number
   onOpenFile?: (path: string) => void
 }): React.JSX.Element {
+  useMobileTheme()
+
   // A reader's choice belongs to the default it deviated from, so toggling the Tools
   // default back restores it.
   const runKey = disclosureId === undefined ? undefined : `run:${disclosureId}:${defaultExpanded}`

@@ -1,3 +1,5 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
+import { createThemedStyles } from '../theme/mobile-themed-styles'
 import {
   ActivityIndicator,
   Image,
@@ -35,6 +37,7 @@ export function MobileNativeChatComposerAttachments({
   onRemoveImage?: (id: string) => void
   onRemoveFile?: (id: string) => void
 }): React.JSX.Element | null {
+  useMobileTheme()
   if (images.length === 0 && files.length === 0) {
     return null
   }
@@ -82,6 +85,7 @@ export function MobileNativeChatComposerAttachments({
 }
 
 function RemoveBadge({ label, onPress }: { label: string; onPress: () => void }) {
+  useMobileTheme()
   return (
     <Pressable accessibilityLabel={label} style={styles.remove} onPress={onPress} hitSlop={8}>
       <X size={11} color={colors.textPrimary} strokeWidth={3} />
@@ -89,83 +93,85 @@ function RemoveBadge({ label, onPress }: { label: string; onPress: () => void })
   )
 }
 
-const styles = StyleSheet.create({
-  strip: {
-    flexGrow: 0,
-    marginBottom: 10
-  },
-  stripContent: {
-    gap: spacing.sm,
-    // Room for the remove badges, which overhang their item's top-right corner.
-    paddingTop: 5,
-    paddingLeft: 2,
-    paddingRight: 5
-  },
-  thumb: {
-    width: THUMB_SIZE,
-    height: THUMB_SIZE,
-    borderRadius: radii.composerItem,
-    backgroundColor: colors.composerControl
-  },
-  thumbImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: radii.composerItem
-  },
-  fileCard: {
-    height: THUMB_SIZE,
-    minWidth: 140,
-    maxWidth: 220,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 9,
-    paddingLeft: 10,
-    paddingRight: spacing.md,
-    borderRadius: radii.composerItem,
-    backgroundColor: colors.composerControl
-  },
-  fileIcon: {
-    width: 32,
-    height: 36,
-    borderRadius: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.bgRaised
-  },
-  fileText: {
-    flexShrink: 1,
-    minWidth: 0
-  },
-  fileName: {
-    color: colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '500'
-  },
-  fileMeta: {
-    color: colors.textMuted,
-    fontSize: 11.5,
-    marginTop: 1
-  },
-  uploading: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: radii.composerItem,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.45)'
-  },
-  // Most of the badge sits inside its item, which Android needs to deliver the tap; the strip's
-  // padding keeps the 5pt overhang from being clipped.
-  remove: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.bgRaised,
-    borderWidth: 2,
-    borderColor: colors.composerSurface
-  }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    strip: {
+      flexGrow: 0,
+      marginBottom: 10
+    },
+    stripContent: {
+      gap: spacing.sm,
+      // Room for the remove badges, which overhang their item's top-right corner.
+      paddingTop: 5,
+      paddingLeft: 2,
+      paddingRight: 5
+    },
+    thumb: {
+      width: THUMB_SIZE,
+      height: THUMB_SIZE,
+      borderRadius: radii.composerItem,
+      backgroundColor: colors.composerControl
+    },
+    thumbImage: {
+      width: '100%',
+      height: '100%',
+      borderRadius: radii.composerItem
+    },
+    fileCard: {
+      height: THUMB_SIZE,
+      minWidth: 140,
+      maxWidth: 220,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 9,
+      paddingLeft: 10,
+      paddingRight: spacing.md,
+      borderRadius: radii.composerItem,
+      backgroundColor: colors.composerControl
+    },
+    fileIcon: {
+      width: 32,
+      height: 36,
+      borderRadius: 7,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.bgRaised
+    },
+    fileText: {
+      flexShrink: 1,
+      minWidth: 0
+    },
+    fileName: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '500'
+    },
+    fileMeta: {
+      color: colors.textMuted,
+      fontSize: 11.5,
+      marginTop: 1
+    },
+    uploading: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: radii.composerItem,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(0, 0, 0, 0.45)'
+    },
+    // Most of the badge sits inside its item, which Android needs to deliver the tap; the strip's
+    // padding keeps the 5pt overhang from being clipped.
+    remove: {
+      position: 'absolute',
+      top: -5,
+      right: -5,
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.bgRaised,
+      borderWidth: 2,
+      borderColor: colors.composerSurface
+    }
+  })
+)

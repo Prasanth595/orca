@@ -1,3 +1,5 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
+import { createThemedStyles } from '../theme/mobile-themed-styles'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { FileText, Package, Terminal } from 'lucide-react-native'
 import type { NativeChatPickerItem } from '../../../src/shared/native-chat-picker-items'
@@ -21,6 +23,7 @@ export function MobileNativeChatComposerMenu({
   rows: readonly ComposerMenuRow[]
   onPick: (row: ComposerMenuRow) => void
 }): React.JSX.Element {
+  useMobileTheme()
   return (
     <View style={styles.card}>
       <ScrollView keyboardShouldPersistTaps="always" style={styles.scroll}>
@@ -44,6 +47,7 @@ function MenuRow({
   row: ComposerMenuRow
   onPick: (row: ComposerMenuRow) => void
 }): React.JSX.Element {
+  useMobileTheme()
   const Icon = row.kind === 'skill' ? Package : row.kind === 'command' ? Terminal : FileText
   const description = row.kind === 'file' ? null : row.description
   return (
@@ -75,68 +79,70 @@ function MenuRow({
   )
 }
 
-const styles = StyleSheet.create({
-  card: {
-    marginHorizontal: 10,
-    marginBottom: spacing.sm,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.composerBorder,
-    backgroundColor: colors.bgPanel,
-    overflow: 'hidden'
-  },
-  scroll: {
-    maxHeight: 300
-  },
-  heading: {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    minHeight: 44
-  },
-  rowPressed: {
-    backgroundColor: colors.bgRaised
-  },
-  icon: {
-    marginTop: 2
-  },
-  body: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2
-  },
-  nameLine: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 6
-  },
-  name: {
-    flexShrink: 1,
-    color: colors.textPrimary,
-    fontFamily: typography.monoFamily,
-    fontSize: 13.5
-  },
-  hint: {
-    flexShrink: 1,
-    color: colors.textMuted,
-    fontFamily: typography.monoFamily,
-    fontSize: typography.metaSize
-  },
-  description: {
-    color: colors.textMuted,
-    fontSize: 12.5,
-    lineHeight: 17
-  }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    card: {
+      marginHorizontal: 10,
+      marginBottom: spacing.sm,
+      paddingVertical: 6,
+      borderRadius: 20,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.composerBorder,
+      backgroundColor: colors.bgPanel,
+      overflow: 'hidden'
+    },
+    scroll: {
+      maxHeight: 300
+    },
+    heading: {
+      color: colors.textMuted,
+      fontSize: 11,
+      fontWeight: '600',
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.xs
+    },
+    row: {
+      flexDirection: 'row',
+      gap: 10,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      minHeight: 44
+    },
+    rowPressed: {
+      backgroundColor: colors.bgRaised
+    },
+    icon: {
+      marginTop: 2
+    },
+    body: {
+      flex: 1,
+      minWidth: 0,
+      gap: 2
+    },
+    nameLine: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: 6
+    },
+    name: {
+      flexShrink: 1,
+      color: colors.textPrimary,
+      fontFamily: typography.monoFamily,
+      fontSize: 13.5
+    },
+    hint: {
+      flexShrink: 1,
+      color: colors.textMuted,
+      fontFamily: typography.monoFamily,
+      fontSize: typography.metaSize
+    },
+    description: {
+      color: colors.textMuted,
+      fontSize: 12.5,
+      lineHeight: 17
+    }
+  })
+)

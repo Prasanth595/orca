@@ -1,3 +1,5 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
+import { createThemedStyles } from '../theme/mobile-themed-styles'
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { colors, radii, spacing, typography } from '../theme/mobile-theme'
 
@@ -20,6 +22,7 @@ type Props<Value extends string> = {
 
 /** A pick-one pill control; each segment reads as a radio button. */
 export function MobileSegmentedControl<Value extends string>(props: Props<Value>) {
+  useMobileTheme()
   return (
     <View
       style={[styles.segmented, props.style, props.disabled && styles.disabled]}
@@ -56,22 +59,24 @@ export function MobileSegmentedControl<Value extends string>(props: Props<Value>
   )
 }
 
-const styles = StyleSheet.create({
-  segmented: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.bgBase,
-    borderRadius: radii.button,
-    padding: 2
-  },
-  segment: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: radii.button - 1
-  },
-  segmentFill: { flex: 1, alignItems: 'center', paddingHorizontal: spacing.xs },
-  segmentActive: { backgroundColor: colors.bgRaised },
-  disabled: { opacity: 0.5 },
-  segmentText: { fontSize: typography.metaSize, color: colors.textSecondary, fontWeight: '600' },
-  segmentTextActive: { color: colors.textPrimary }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    segmented: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.bgBase,
+      borderRadius: radii.button,
+      padding: 2
+    },
+    segment: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: 6,
+      borderRadius: radii.button - 1
+    },
+    segmentFill: { flex: 1, alignItems: 'center', paddingHorizontal: spacing.xs },
+    segmentActive: { backgroundColor: colors.bgRaised },
+    disabled: { opacity: 0.5 },
+    segmentText: { fontSize: typography.metaSize, color: colors.textSecondary, fontWeight: '600' },
+    segmentTextActive: { color: colors.textPrimary }
+  })
+)

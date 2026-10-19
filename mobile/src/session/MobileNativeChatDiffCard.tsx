@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { useMemo } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { ChevronRight, FileMinus2, FilePen, FilePlus2 } from 'lucide-react-native'
@@ -134,6 +135,8 @@ export function MobileNativeChatDiffCard({
   disclosureKey?: string
   onOpenFile?: (path: string) => void
 }): React.JSX.Element {
+  useMobileTheme()
+
   const [expanded, setExpanded] = useMobileNativeChatDisclosure(disclosureKey, defaultExpanded)
   const hasBody = file.lines.length > 0
   const copyText = useMemo(() => nativeChatEditFilePatchText(file.lines), [file.lines])

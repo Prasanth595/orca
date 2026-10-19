@@ -1,3 +1,4 @@
+import { createThemedStyles } from '../theme/mobile-themed-styles'
 import { StyleSheet } from 'react-native'
 import { colors, radii, spacing } from '../theme/mobile-theme'
 
@@ -14,50 +15,52 @@ const roundControl = {
   justifyContent: 'center'
 } as const
 
-export const mobileNativeChatComposerStyles = StyleSheet.create({
-  composerInset: {
-    paddingHorizontal: 10,
-    paddingTop: COMPOSER_INSET_TOP,
-    paddingBottom: spacing.sm
-  },
-  bar: {
-    paddingTop: spacing.md,
-    paddingHorizontal: 10,
-    paddingBottom: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.composerBorder,
-    borderRadius: radii.composer,
-    backgroundColor: colors.composerSurface,
-    shadowColor: '#000',
-    shadowOpacity: 0.45,
-    shadowRadius: 15,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8
-  },
-  actionRow: {
-    marginTop: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm
-  },
-  actionSpacer: {
-    flex: 1
-  },
-  controlButton: {
-    ...roundControl,
-    backgroundColor: colors.composerControl
-  },
-  ghostButton: {
-    ...roundControl
-  },
-  sendButton: {
-    ...roundControl,
-    backgroundColor: colors.surfaceBright
-  },
-  sendButtonDisabled: {
-    backgroundColor: colors.composerControl
-  },
-  pressed: {
-    opacity: 0.7
-  }
-})
+export const mobileNativeChatComposerStyles = createThemedStyles(() =>
+  StyleSheet.create({
+    composerInset: {
+      paddingHorizontal: 10,
+      paddingTop: COMPOSER_INSET_TOP,
+      paddingBottom: spacing.sm
+    },
+    bar: {
+      paddingTop: spacing.md,
+      paddingHorizontal: 10,
+      paddingBottom: 10,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.composerBorder,
+      borderRadius: radii.composer,
+      backgroundColor: colors.composerSurface,
+      shadowColor: '#000',
+      shadowOpacity: 0.45,
+      shadowRadius: 15,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 8
+    },
+    actionRow: {
+      marginTop: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm
+    },
+    actionSpacer: {
+      flex: 1
+    },
+    controlButton: {
+      ...roundControl,
+      backgroundColor: colors.composerControl
+    },
+    ghostButton: {
+      ...roundControl
+    },
+    sendButton: {
+      ...roundControl,
+      backgroundColor: colors.surfaceBright
+    },
+    sendButtonDisabled: {
+      backgroundColor: colors.composerControl
+    },
+    pressed: {
+      opacity: 0.7
+    }
+  })
+)

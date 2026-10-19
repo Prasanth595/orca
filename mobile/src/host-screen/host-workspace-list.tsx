@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { useMemo } from 'react'
 import {
   ActivityIndicator,
@@ -31,6 +32,8 @@ import { HostPendingCreationRow } from './host-pending-creation-row'
 import type { HostScreenController } from './use-host-screen-controller'
 
 export function HostWorkspaceList({ controller }: { controller: HostScreenController }) {
+  useMobileTheme()
+
   const {
     actions,
     activeWorktreeScroll,
@@ -268,5 +271,7 @@ export function HostWorkspaceList({ controller }: { controller: HostScreenContro
 }
 
 function ListSeparator() {
+  useMobileTheme()
+
   return <View style={styles.separator} />
 }

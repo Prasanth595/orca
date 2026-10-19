@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { Text, TextInput } from 'react-native'
 import {
   mobileNativeChatComposerSkillStyles as styles,
@@ -12,6 +13,7 @@ export function MobileNativeChatComposerField({
   ref,
   ...props
 }: MobileNativeChatComposerFieldProps) {
+  useMobileTheme()
   if (!skillToken) {
     return <TextInput ref={ref} value={value} style={inputStyles.input} {...props} />
   }

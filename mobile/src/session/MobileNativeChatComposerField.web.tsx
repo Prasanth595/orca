@@ -1,3 +1,5 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
+import { createThemedStyles } from '../theme/mobile-themed-styles'
 import { useState } from 'react'
 import { StyleSheet, Text, TextInput, View } from 'react-native'
 import { colors } from '../theme/mobile-theme'
@@ -9,7 +11,9 @@ import {
 
 // A textarea cannot style part of its text, so its own text goes clear and a copy laid over it
 // draws the skill. The caret stays visible. Plain object: React Native's types lack `caretColor`.
-const clearText = { field: { color: 'transparent', caretColor: colors.textPrimary } }
+const clearText = createThemedStyles(() => ({
+  field: { color: 'transparent', caretColor: colors.textPrimary }
+}))
 
 function scrollTopOf(event: unknown): number {
   const target =
@@ -31,6 +35,7 @@ export function MobileNativeChatComposerField({
   ref,
   ...props
 }: MobileNativeChatComposerFieldProps) {
+  useMobileTheme()
   const [scrollTop, setScrollTop] = useState(0)
   // One tree whether or not a skill leads: swapping it would remount the field and drop focus.
   return (

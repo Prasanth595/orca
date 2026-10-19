@@ -1,3 +1,4 @@
+import { createThemedStyles } from '../theme/mobile-themed-styles'
 import { StyleSheet } from 'react-native'
 import { typography } from '../theme/mobile-theme'
 import { mobileNativeChatInputBase } from './mobile-native-chat-input-base-styles'
@@ -13,7 +14,9 @@ import { mobileNativeChatInputBase } from './mobile-native-chat-input-base-style
 const CHAT_INPUT_FONT_SIZE = typography.bodySize + 1
 const COMPOSER_INPUT_FONT_SIZE = 16
 
-export const mobileNativeChatInputStyles = StyleSheet.create({
-  input: { ...mobileNativeChatInputBase.input, fontSize: COMPOSER_INPUT_FONT_SIZE },
-  freeInput: { ...mobileNativeChatInputBase.freeInput, fontSize: CHAT_INPUT_FONT_SIZE }
-})
+export const mobileNativeChatInputStyles = createThemedStyles(() =>
+  StyleSheet.create({
+    input: { ...mobileNativeChatInputBase.input, fontSize: COMPOSER_INPUT_FONT_SIZE },
+    freeInput: { ...mobileNativeChatInputBase.freeInput, fontSize: CHAT_INPUT_FONT_SIZE }
+  })
+)
