@@ -67,8 +67,10 @@ ORCA orchestration worker-list --run <run_id> --include-remote --json
 
 `worker-list` reads local fleet state only; enumerate remote workers with
 `--include-remote` or every one of them reads `unverifiable`. Scope every list
-with `--run <run_id>`: unscoped, it reports every Dispatch this runtime has
-recorded, and the workers you are waiting on are lost in that history.
+with `--run <run_id>`: unscoped, it lists only the Run bound to the calling
+terminal, or every Run this runtime has recorded when that terminal is
+unbound, so the same command returns a different fleet depending on where it
+runs. The receipt's `scope.source` (`flag`, `bound`, or `all`) names which.
 
 ## Execution-host and mixed-version floor
 
