@@ -18,13 +18,20 @@ import type { AgentSessionJournal } from '../agent-session-journal/journal-store
 import type { JournalReplacementItem } from '../agent-session-journal/journal-epoch-replacement'
 
 export type StructuredRewindCut = {
-  /** The provider turn the rewind removes, with every later one. */
-  beforeTurnId: string
-  /** The last provider turn the rewind keeps; null when it keeps none. */
-  keptTurnId: string | null
   /** The rows after any /clear floor the rewound conversation keeps, in journal order. */
   kept: JournalReplacementItem[]
-}
+} & (
+  | {
+      /** The provider turn the rewind removes, with every later one. */
+      beforeTurnId: string
+      /** The last provider turn the rewind keeps; null when it keeps none. */
+      keptTurnId: string | null
+    }
+  | {
+      /** A provider that forks to rewind cuts at the message itself: the prompt it removes. */
+      beforeMessage: { sessionId: string; uuid: string }
+    }
+)
 
 /** The cut at `itemId` for the session's current provider handle; null when it can't be cut there. */
 export function structuredRewindCut(
@@ -36,9 +43,33 @@ export function structuredRewindCut(
   const items = floor
     ? snapshot.items.filter((item) => item.sequence > floor.sequence)
     : snapshot.items
-  const { providerKey, queued, rejected } = submissionKeys(snapshot.submissions)
+  const { providerKey, omitted } = submissionKeys(snapshot.submissions)
   const selected = items.find((item) => item.itemId === target.itemId)
   const key = selected ? parseAgentJournalItemKey(providerKey(selected.itemId)) : null
+  if (key?.provider === 'claude' && target.provider === 'claude') {
+    // Any session the chat ran: a message from before an earlier rewind's fork is still cut there.
+    const boundary = items.findIndex((item) => item.itemId === target.itemId)
+    // A message sent into a running turn joins it; the fork forgets the rest of that turn.
+    const cutTurn = selected && scopedTurn(selected)
+    const keptTurns = new Set(
+      items
+        .slice(0, boundary)
+        .flatMap((item) => scopedTurn(item) ?? [])
+        .filter((turn) => turn !== cutTurn)
+    )
+    const keptRows = items.filter((item, index) => {
+      const turn = scopedTurn(item)
+      // A kept turn's row can land after the cut, as a late provider item does.
+      return (
+        !omitted.has(item.itemId) &&
+        (index < boundary || (turn !== undefined && keptTurns.has(turn)))
+      )
+    })
+    return {
+      beforeMessage: { sessionId: key.sessionId, uuid: key.uuid },
+      kept: keptRows.map((item) => keptRow(journal, item, providerKey))
+    }
+  }
   if (
     key?.provider !== 'codex' ||
     target.provider !== 'codex' ||
@@ -53,8 +84,7 @@ export function structuredRewindCut(
     const turnId = turnOf(item)
     // A kept turn's row can land after the cut, as a late provider item does.
     return (
-      !queued.has(item.itemId) &&
-      !rejected.has(item.itemId) &&
+      !omitted.has(item.itemId) &&
       (index < boundary || (turnId !== undefined && keptTurns.has(turnId)))
     )
   })
@@ -70,6 +100,10 @@ export function structuredRewindCut(
     ),
     kept: keptRows.map((item) => keptRow(journal, item, providerKey))
   }
+}
+
+function scopedTurn(item: AgentJournalRenderItem): string | undefined {
+  return item.turnScope?.kind === 'turn' ? item.turnScope.turnItemId : undefined
 }
 
 /** The newest main-thread turn the provider lists among `rows`: from a provider item's own key,
@@ -102,26 +136,23 @@ export function providerItemIdOf(journal: AgentSessionJournal, itemId: string): 
 }
 
 // Accepted messages keep Orca's key in the journal; the rebuilt epoch has no submission to tie them
-// to, so they take the provider's. Queued ones survive any rewind on their own.
+// to, so they take the provider's.
 function submissionKeys(submissions: readonly AgentJournalSubmission[]): {
   providerKey: (itemId: string) => string
-  queued: ReadonlySet<string>
-  rejected: ReadonlySet<string>
+  /** Messages a rewind never keeps: queued ones survive it on their own, rejected ones never ran. */
+  omitted: ReadonlySet<string>
 } {
   const providerKeys = new Map<string, string>()
-  const queued = new Set<string>()
-  const rejected = new Set<string>()
+  const omitted = new Set<string>()
   for (const submission of submissions) {
     const key = agentJournalSubmissionKey(submission.clientMessageId)
-    if (isQueuedAgentJournalSubmission(submission)) {
-      queued.add(key)
-    } else if (submission.dispatchState === 'rejected') {
-      rejected.add(key)
+    if (isQueuedAgentJournalSubmission(submission) || submission.dispatchState === 'rejected') {
+      omitted.add(key)
     } else if (submission.dispatchState === 'accepted' && submission.providerItemId) {
       providerKeys.set(key, submission.providerItemId)
     }
   }
-  return { providerKey: (itemId) => providerKeys.get(itemId) ?? itemId, queued, rejected }
+  return { providerKey: (itemId) => providerKeys.get(itemId) ?? itemId, omitted }
 }
 
 /** The main conversation turn a row belongs to: its own Codex key on the main thread, else the turn

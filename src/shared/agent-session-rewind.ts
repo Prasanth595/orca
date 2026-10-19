@@ -47,6 +47,17 @@ export const AgentSessionRewindRecordSchema = z.object({
   sequence: z.number().int().nonnegative().optional(),
   /** Written by older builds only, as is `retained`: rewind now derives both from the journal. */
   hydrationVerified: z.boolean().optional(),
+  // A provider that rewinds by forking: the session the chat continues in, copied from `sourceSessionId`
+  // through `throughEntryId` (absent: nothing kept). Its next launch performs the fork.
+  providerFork: z
+    .object({
+      sessionId: Key,
+      sourceSessionId: Key,
+      throughEntryId: Key.optional(),
+      // The chat's session when it was rewound; a later head means the fork no longer applies.
+      replacesSessionId: Key
+    })
+    .optional(),
   reason: z.string().min(1).max(512).optional(),
   retained: z
     .array(
@@ -69,6 +80,23 @@ export const AgentSessionRewindRecordSchema = z.object({
     .optional()
 })
 export type AgentSessionRewindRecord = z.infer<typeof AgentSessionRewindRecordSchema>
+export type AgentSessionRewindFork = NonNullable<AgentSessionRewindRecord['providerFork']>
+
+/**
+ * The fork a rewind still owes the chat's next launch: it applies while the chat's provider
+ * session is the one rewound, or the fork itself before the provider has written it. A prepared
+ * one counts: recovery always completes it, so a launch before then must not resume the old one.
+ */
+export function pendingAgentSessionRewindFork(
+  rewind: AgentSessionRewindRecord | undefined,
+  headNativeId: string | undefined
+): AgentSessionRewindFork | null {
+  const fork = rewind?.providerFork
+  if (!fork || rewind.phase === 'refused') {
+    return null
+  }
+  return headNativeId === fork.replacesSessionId || headNativeId === fork.sessionId ? fork : null
+}
 export const isAgentSessionRewindRecord = (value: unknown): value is AgentSessionRewindRecord =>
   AgentSessionRewindRecordSchema.safeParse(value).success
 
