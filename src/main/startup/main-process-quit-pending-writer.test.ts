@@ -10,12 +10,12 @@ const stopStructuredAgentSessionRuntime = settled()
 
 // Keep unrelated teardown members settled so each test isolates its pending resource.
 const dependencies: Record<string, Record<string, unknown>> = {
-  '../ipc/filesystem-watcher': { closeAllWatchers: settled() },
+  '../ipc/filesystem-watcher-shutdown': { closeAllWatchers: settled() },
   '../ipc/worktree-base-directory-watcher': { disposeWorktreeBaseDirectoryWatchers: settled() },
   '../ipc/folder-repo-git-upgrade': { stopFolderRepoGitUpgradeWatch: idle() },
   '../ipc/pty/kill-all': { killAllPty },
   '../daemon/daemon-provider-state': { disconnectDaemon: settled(), shutdownDaemon: settled() },
-  '../ipc/ssh-shutdown-drain': { beginSshShutdown: settled() },
+  '../ipc/ssh/ssh-shutdown-drain': { beginSshShutdown: settled() },
   '../agent-hooks/server': { agentHookServer: { stop: stopAgentHookServer } },
   '../agent-hooks/wsl-hook-relay-manager': { wslHookRelayManager: { disposeAll: idle() } },
   '../agent-hooks/managed-agent-hook-controls': {
@@ -25,11 +25,13 @@ const dependencies: Record<string, Record<string, unknown>> = {
   '../runtime/structured-agent-session-runtime-teardown': {
     setStructuredAgentSessionTeardownTrigger: idle()
   },
-  '../runtime/orca-runtime-files': { awaitRuntimeFileWatcherUnsubscribes: settled() },
+  '../runtime/files/watch/file-watcher-leases': { awaitRuntimeFileWatcherUnsubscribes: settled() },
   '../runtime/runtime-metadata': { clearRuntimeMetadataIfOwned: idle() },
   '../browser/paired-runtime-browser-client-host-runtime': {
     shutdownPairedRuntimeBrowserClientHosts: settled()
   },
+  '../ipc/desktop-browser-bridge-wiring': { disposeDesktopBrowserBridge: idle() },
+  '../orca-profiles/profile-cloud-session-owner': { flushUnsavedCloudSessions: idle() },
   '../browser/browser-manager': { browserManager: { setBrowserGuestStateChangedListener: idle() } },
   '../browser/local-ssh-browser-route': { closeAllLocalSshBrowserRoutes: settled() },
   '../codex/codex-state-db-backfill-recovery': { stopCodexStateDbBackfillRecoveries: settled() },
