@@ -63,6 +63,12 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
   ): Promise<void> => {
     clearAutoSaveTimer(file.id)
     const queuedGeneration = saveGeneration.get(file.id) ?? 0
+    // Why: an explicit save resumes only the pause it saw; one created during the write stands.
+    const pauseSeenAtEnqueue =
+      trigger === 'user'
+        ? store.getState().openFiles.find((openFile) => openFile.id === file.id)
+            ?.autosavePausedAfterReloadUndo
+        : undefined
 
     const previousSave = saveQueue.get(file.id) ?? Promise.resolve()
     const queuedSave = previousSave
@@ -144,6 +150,9 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
           (currentDraft !== undefined && currentDraft !== contentToSave) ||
           hasPendingEditorChange(file.id)
         nextState.markFileDirty(file.id, stillDirty)
+        if (pauseSeenAtEnqueue !== undefined) {
+          nextState.resumeAutosaveAfterReloadUndo(file.id, pauseSeenAtEnqueue)
+        }
         if (!stillDirty) {
           nextState.clearEditorDraft(file.id)
         }

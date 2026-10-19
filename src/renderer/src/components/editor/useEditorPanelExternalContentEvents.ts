@@ -5,6 +5,7 @@ import type { OpenFile } from '@/store/slices/editor'
 import {
   getOpenFilesForExternalFileChange,
   ORCA_EDITOR_EXTERNAL_FILE_CHANGE_EVENT,
+  ORCA_EDITOR_FILE_RELOADED_EVENT,
   ORCA_EDITOR_FILE_SAVED_EVENT,
   type EditorFileSavedDetail,
   type EditorPathMutationTarget
@@ -171,6 +172,15 @@ export function useEditorPanelExternalContentEvents({
       if (!file) {
         return
       }
+      if (event.type === ORCA_EDITOR_FILE_RELOADED_EVENT) {
+        // Why: a read started before the reload must not land after it and restore older text.
+        invalidateContent([
+          file.id,
+          ...openFilesRef.current
+            .filter((openFile) => openFile.markdownPreviewSourceFileId === file.id)
+            .map((openFile) => openFile.id)
+        ])
+      }
       if (file.mode === 'edit' || file.mode === 'markdown-preview') {
         setFileContents((prev) => ({
           ...prev,
@@ -189,9 +199,14 @@ export function useEditorPanelExternalContentEvents({
         return { ...prev, [file.id]: { ...existing, modifiedContent: detail.content } }
       })
     }
-    window.addEventListener(ORCA_EDITOR_FILE_SAVED_EVENT, handler as EventListener)
-    return () => window.removeEventListener(ORCA_EDITOR_FILE_SAVED_EVENT, handler as EventListener)
-  }, [openFilesRef, setDiffContents, setFileContents])
+    // Why: a banner reload knows the exact disk text, like a save — every panel adopts it as its baseline.
+    window.addEventListener(ORCA_EDITOR_FILE_SAVED_EVENT, handler)
+    window.addEventListener(ORCA_EDITOR_FILE_RELOADED_EVENT, handler)
+    return () => {
+      window.removeEventListener(ORCA_EDITOR_FILE_SAVED_EVENT, handler)
+      window.removeEventListener(ORCA_EDITOR_FILE_RELOADED_EVENT, handler)
+    }
+  }, [invalidateContent, openFilesRef, setDiffContents, setFileContents])
 }
 
 function updateSavedPreviewTabs(

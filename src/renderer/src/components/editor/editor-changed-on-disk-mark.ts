@@ -11,11 +11,26 @@ type ChangedOnDiskMarkState = {
 // at fs-event time, the autosave controller's notification backstop, and the
 // restored-tab conflict scan). Centralizing keeps the rule from drifting;
 // each writer keeps its own echo/eligibility guard at the call site.
+const diskChangeRevisionByFileId = new Map<string, number>()
+
+/** Advances on every changed-on-disk report, even when the tab is already marked. */
+export function getDiskChangeRevision(fileId: string): number {
+  return diskChangeRevisionByFileId.get(fileId) ?? 0
+}
+
+/** Call when the change is received, before any async echo verification decides on the mark. */
+export function noteDiskChangeReceived(fileIds: readonly string[]): void {
+  for (const fileId of fileIds) {
+    diskChangeRevisionByFileId.set(fileId, getDiskChangeRevision(fileId) + 1)
+  }
+}
+
 export function markFileChangedOnDisk(
   state: ChangedOnDiskMarkState,
   file: OpenFile,
   options: { connectionId: string | undefined; origin: 'live' | 'restore' }
 ): void {
+  noteDiskChangeReceived([file.id])
   if (!file.isDirty || !canAutoSaveOpenFile(file)) {
     return
   }
