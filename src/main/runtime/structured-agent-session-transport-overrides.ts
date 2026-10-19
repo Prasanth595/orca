@@ -1,4 +1,6 @@
 import type { ClaudeStructuredSessionAdapterDeps } from '../claude/claude-structured-session-adapter'
+import type { ZcodeStructuredSessionAdapterDeps } from '../zcode/zcode-structured-session-state'
+import type { ZcodeStructuredLaunchPartDeps } from '../zcode/zcode-structured-launch-resolution'
 import type { CodexStructuredSessionAdapterDeps } from '../codex/codex-structured-session-adapter'
 import type { readCodexCliInstallation } from '../preflight/codex-cli-installation'
 import type { StructuredAgentSessionStartupLimits } from '../native-chat/agent-session-wire/structured-agent-session-startup-attempt-contract'
@@ -11,6 +13,8 @@ export type StructuredAgentSessionTransportOverrides = {
   /** Scripted transports must also replace the real host's version probe. */
   readCodexInstallation?: typeof readCodexCliInstallation
   openClaudeConnection?: ClaudeStructuredSessionAdapterDeps['openConnection']
+  openZcodeConnection?: ZcodeStructuredSessionAdapterDeps['openConnection']
+  resolveZcodeCommand?: ZcodeStructuredLaunchPartDeps['resolveCommand']
   /** Scripted app-servers carry fake pids the real start-time read cannot answer for. */
   readProcessStartTime?: CodexStructuredSessionAdapterDeps['readProcessStartTime']
   /** The shipped startup limits unless a test shortens them. */
