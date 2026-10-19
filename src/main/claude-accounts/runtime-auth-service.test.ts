@@ -13,7 +13,9 @@ const fakes = vi.hoisted(() => ({
     prepareLaunch: async (distro: string) => ({ runtime: 'wsl', wslDistro: distro }),
     publish: async (_distro: string): Promise<void> => {},
     runningDistros: async (): Promise<string[]> => [],
-    preparation: async (_distro: string) => ({
+    preparation: async (distro: string) => ({
+      runtime: 'wsl',
+      wslDistro: distro,
       configDir: String.raw`\\wsl.localhost\Ubuntu\home\ada\.claude`,
       provenance: 'wsl:Ubuntu:system'
     })
@@ -47,10 +49,14 @@ vi.mock('./claude-profile-installed-router', () => ({
 import { ClaudeRuntimeAuthService } from './runtime-auth-service'
 
 const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
-function service(platformName: NodeJS.Platform, overrides: Partial<GlobalSettings> = {}) {
+function service(
+  platformName: NodeJS.Platform,
+  overrides: Partial<GlobalSettings> = {},
+  isDistroRunning: (distro: string) => Promise<boolean> = async () => true
+) {
   Object.defineProperty(process, 'platform', { configurable: true, value: platformName })
   const settings = { ...getDefaultSettings('/home/user'), ...overrides }
-  return new ClaudeRuntimeAuthService({ getSettings: () => settings })
+  return new ClaudeRuntimeAuthService({ getSettings: () => settings }, isDistroRunning)
 }
 
 beforeEach(() => {
@@ -81,6 +87,8 @@ describe('ClaudeRuntimeAuthService', () => {
   it('keeps the selected managed WSL profile isolated from the system default', async () => {
     const profile = String.raw`\\wsl.localhost\Ubuntu\home\ada\.local\share\orca\claude-profiles\account\home`
     vi.spyOn(fakes.wsl, 'preparation').mockResolvedValue({
+      runtime: 'wsl',
+      wslDistro: 'Ubuntu',
       configDir: profile,
       provenance: 'profile:account:wsl:Ubuntu'
     })
@@ -96,6 +104,21 @@ describe('ClaudeRuntimeAuthService', () => {
     const auth = service('win32', { localAccountRuntime: 'wsl' })
     await expect(auth.getUsageProfileDirs()).rejects.toThrow('WSL unavailable')
   })
+
+  it('skips a quota preparation for a stopped distro instead of booting it', async () => {
+    const preparation = vi.spyOn(fakes.wsl, 'preparation')
+    const auth = service('win32', {}, async () => false)
+    await expect(
+      auth.prepareForRateLimitFetch({ runtime: 'wsl', wslDistro: 'Ubuntu' })
+    ).resolves.toMatchObject({ usageError: 'WSL distro Ubuntu is not running.' })
+    expect(preparation).not.toHaveBeenCalled()
+
+    const running = service('win32')
+    await expect(
+      running.prepareForRateLimitFetch({ runtime: 'wsl', wslDistro: 'Ubuntu' })
+    ).resolves.toMatchObject({ runtime: 'wsl', wslDistro: 'Ubuntu' })
+  })
+
   it('keeps a stale WSL account setting on the host off Windows', async () => {
     const auth = service('darwin', { localAccountRuntime: 'wsl', localAccountWslDistro: 'Ubuntu' })
     expect(auth.getRuntimeConfigDir()).toBe('/host/.claude')

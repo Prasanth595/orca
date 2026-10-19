@@ -48,7 +48,10 @@ describe('WSL transcript filesystem process operations', () => {
       })
       expect(pinnedStat).toMatchObject({ size: BigInt(Buffer.byteLength('original transcript')) })
       expect(pathStat).toMatchObject({ size: BigInt(Buffer.byteLength('replacement bytes')) })
-      expect(pinnedStat).not.toMatchObject({ ino: Reflect.get(Object(pathStat), 'ino') })
+      if (!pathStat || typeof pathStat !== 'object' || !('ino' in pathStat)) {
+        throw new Error('Expected the path stat result to include its inode')
+      }
+      expect(pinnedStat).not.toMatchObject({ ino: pathStat.ino })
       await operations.execute({ id: 3, operation: 'close', handleId })
 
       expect(Buffer.from(body as Buffer).toString('utf8')).toBe('original transcript')
