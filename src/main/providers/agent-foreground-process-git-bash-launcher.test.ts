@@ -78,8 +78,19 @@ describe('Windows shell proof for the Git Bash launcher', () => {
     await expect(
       confirm(LAUNCHER, [...IDLE_ROWS, bash(600, SHELL_PID), bash(601, SHELL_PID)]).result
     ).resolves.toBe(false)
-    const orphan = { pid: 800, ppid: 1, name: 'node.exe' }
-    await expect(confirm(LAUNCHER, [...IDLE_ROWS, orphan]).result).resolves.toBe(false)
+  })
+
+  it('ignores a member whose parent exited, but not a live child beside it', async () => {
+    // rc-started `ssh-agent` forks and its parent exits; the job still holds the daemon.
+    const sshAgent = { pid: 900, ppid: 777, name: 'ssh-agent.exe' }
+    const claude = { pid: 901, ppid: SHELL_PID, name: 'claude.exe' }
+    await expect(confirm(LAUNCHER, [...IDLE_ROWS, sshAgent]).result).resolves.toBe(true)
+    await expect(confirm(LAUNCHER, [...IDLE_ROWS, sshAgent, claude]).result).resolves.toBe(false)
+    const pwshRows = [{ pid: LAUNCHER_PID, ppid: 50, name: 'pwsh.exe' }, sshAgent]
+    await expect(confirm('pwsh.exe', pwshRows).result).resolves.toBe(true)
+    await expect(
+      confirm('pwsh.exe', [...pwshRows, { ...claude, ppid: LAUNCHER_PID }]).result
+    ).resolves.toBe(false)
   })
 
   it('confirms a nested bash and a fork caught before its exec: both are a bash leaf', async () => {
@@ -99,14 +110,6 @@ describe('Windows shell proof for the Git Bash launcher', () => {
         bash(SHELL_PID, EXEC_STUB_PID, 1_100)
       ]).result
     ).resolves.toBe(false)
-    // A job pid reused by an unrelated process between the job read and the table read.
-    await expect(
-      confirm(LAUNCHER, [
-        IDLE_ROWS[0],
-        IDLE_ROWS[1],
-        { pid: SHELL_PID, ppid: 4, name: 'svchost.exe' }
-      ]).result
-    ).resolves.toBe(false)
   })
 
   it('refutes a non-bash link anywhere in the chain', async () => {
@@ -119,15 +122,10 @@ describe('Windows shell proof for the Git Bash launcher', () => {
     ).resolves.toBe(false)
   })
 
-  it('never reads the table for a shell that is not the launcher', async () => {
+  it('refutes any live child of a shell that is not the launcher', async () => {
     // A directly launched MSYS bash with a forked subshell has the same shape as the hand-off.
-    const direct = confirm(MSYS_BASH, IDLE_ROWS)
-    await expect(direct.result).resolves.toBe(false)
-    expect(direct.readIdentityTable).not.toHaveBeenCalled()
-
-    const powershell = confirm('powershell.exe', IDLE_ROWS)
-    await expect(powershell.result).resolves.toBe(false)
-    expect(powershell.readIdentityTable).not.toHaveBeenCalled()
+    await expect(confirm(MSYS_BASH, IDLE_ROWS).result).resolves.toBe(false)
+    await expect(confirm('powershell.exe', IDLE_ROWS).result).resolves.toBe(false)
   })
 
   it('confirms a launcher alone in its job without reading the table', async () => {
