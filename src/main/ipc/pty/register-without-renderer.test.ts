@@ -59,7 +59,8 @@ describe('PTY registration without renderer delivery', () => {
     mainWindow,
     mainWindowIpcEvent,
     installObservableDaemonTestProvider,
-    getPtyWriteListener
+    getPtyWriteListener,
+    getPtySetRendererPtyConsumerListener
   } = setupPtyIpcSuite()
 
   it('keeps daemon output and exits flowing to the runtime without renderer work', async () => {
@@ -187,8 +188,8 @@ describe('PTY registration without renderer delivery', () => {
       webContents: Object.assign(mainWindow.webContents, { id: 1 })
     }
     registerPtyHandlers(renderer, runtime)
-    expect(rendererEvents.listenerCount('did-finish-load')).toBe(1)
-    expect(rendererEvents.listenerCount('render-process-gone')).toBe(2)
+    expect(rendererEvents.listenerCount('did-finish-load')).toBe(0)
+    expect(rendererEvents.listenerCount('render-process-gone')).toBe(1)
 
     await registerHeadlessPtyRuntime(runtime)
     expect(rendererEvents.eventNames()).toEqual([])
@@ -206,11 +207,13 @@ describe('PTY registration without renderer delivery', () => {
       ([channel]) => channel === 'pty:rendererDispatcherReady'
     )?.[1]
     ready(mainWindowIpcEvent)
+    // The window's pane connection consumes the PTY again.
+    getPtySetRendererPtyConsumerListener()(null, { id: 'daemon-pty', consuming: true })
     daemon.emitData('daemon-pty', 'output')
     vi.advanceTimersByTime(20)
     expect(onData).toHaveBeenCalledTimes(2)
-    expect(rendererEvents.listenerCount('did-finish-load')).toBe(1)
-    expect(rendererEvents.listenerCount('render-process-gone')).toBe(2)
+    expect(rendererEvents.listenerCount('did-finish-load')).toBe(0)
+    expect(rendererEvents.listenerCount('render-process-gone')).toBe(1)
     expect(mainWindow.webContents.send).toHaveBeenCalledWith(
       'pty:data',
       expect.objectContaining({ id: 'daemon-pty', data: 'output' })

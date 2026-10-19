@@ -38,7 +38,7 @@ import {
   syncPtyBackgroundedDelivery,
   updateProducerFlowControl
 } from './producer-sync'
-import { acceptPtyDataForRenderer, rendererPtyIsKnownHidden } from './accept'
+import { acceptPtyDataForRenderer } from './accept'
 import {
   consumeSyntheticKillExit,
   rememberRetiredRejectedPty,
@@ -46,10 +46,9 @@ import {
   sendPtyExitToRenderer,
   sendPtySpawnedToRenderer
 } from './exit'
-import {
-  transitionHiddenRendererPtyDeliveryState,
-  transitionSpawnHiddenRendererPtyDeliveryState
-} from './hidden-transition'
+import { changeRendererPtyClaims, retireRendererPageClaims } from '../ipc/renderer-attachment-ipc'
+import { setRendererAttachmentChangeHandler } from './renderer-attachments'
+import { setRendererPageRetireHandler } from './renderer-page'
 import { requestSerializedBuffer } from '../ipc/serialize-buffer'
 import { shutdownProviderAndDetectExit } from '../provider/shutdown-detect'
 import type { PtyIpcSession } from '../session'
@@ -88,16 +87,13 @@ export function wirePtyIpcSession(session: PtyIpcSession): void {
     syncPtyBackgroundedDelivery(session, id, caller)
   session.resyncBackgroundedDeliveriesAfterGateReset = () =>
     resyncBackgroundedDeliveriesAfterGateReset(session)
-  session.transitionHiddenRendererPtyDeliveryState = (id, hidden) =>
-    transitionHiddenRendererPtyDeliveryState(session, id, hidden)
-  session.transitionSpawnHiddenRendererPtyDeliveryState = (id, hidden) =>
-    transitionSpawnHiddenRendererPtyDeliveryState(session, id, hidden)
-  session.rendererPtyIsKnownHidden = rendererPtyIsKnownHidden
   session.schedulePendingDataAfterCreditReport = (creditedAny) =>
     schedulePendingDataAfterCreditReport(session, creditedAny)
   session.writeOffLostRendererDelivery = (report) => writeOffLostRendererDelivery(session, report)
   session.getRendererInFlightCharsForPty = (id) => getRendererInFlightCharsForPty(session, id)
 
+  setRendererAttachmentChangeHandler((ids, mutate) => changeRendererPtyClaims(session, ids, mutate))
+  setRendererPageRetireHandler((page) => retireRendererPageClaims(session, page))
   setClearBackgroundedDeliverySyncForPty((id: string) => {
     session.backgroundedDeliverySyncByPty.delete(id)
   })

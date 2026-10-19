@@ -1,4 +1,10 @@
 import { onMock } from './pty-ipc-mock-registry'
+import {
+  attachTestPaneView as attachPaneView,
+  openTestWindowPage as openWindowPage,
+  getTestRendererPage,
+  reportTestPaneAttachment
+} from './pty-ipc-test-pane-attachments'
 
 type IpcHandlerMap = Map<string, (_event: unknown, args: unknown) => unknown>
 type MainWindowDouble = {
@@ -46,17 +52,32 @@ export function createPtyIpcListenerAccessors(ctx: {
     return activeCall[1] as (event: unknown, args: { id: string; active: boolean }) => void
   }
 
+  /** The pane connection for `id` reports its visibility. */
   function getPtySetRendererPtyVisibleListener(): (
     event: unknown,
     args: { id: string; visible: boolean }
   ) => void {
-    const visibleCall = onMock.mock.calls.find(
-      (call: unknown[]) => call[0] === 'pty:setRendererPtyVisible'
-    )
-    if (!visibleCall) {
-      throw new Error('missing pty:setRendererPtyVisible listener')
-    }
-    return visibleCall[1] as (event: unknown, args: { id: string; visible: boolean }) => void
+    return (event, args) =>
+      reportTestPaneAttachment(mainWindowIpcEvent, event, args.id, { visible: args.visible })
+  }
+
+  /** A visible pane in `window` (the suite window by default) already consumes `ptyId`. */
+  function attachTestPaneView(ptyId: string, window: { webContents: unknown } = mainWindow): void {
+    attachPaneView(window.webContents, ptyId)
+  }
+
+  /** Opens the test page from `window`'s main frame and returns its IPC event. */
+  function openTestWindowPage(window: { webContents: unknown }): unknown {
+    return openWindowPage(window.webContents)
+  }
+
+  /** The pane connection for `id` reports whether its view consumes the bytes. */
+  function getPtySetRendererPtyConsumerListener(): (
+    event: unknown,
+    args: { id: string; consuming: boolean }
+  ) => void {
+    return (event, args) =>
+      reportTestPaneAttachment(mainWindowIpcEvent, event, args.id, { consuming: args.consuming })
   }
 
   function getPtyRendererDispatcherReadyListener(): () => void {
@@ -100,19 +121,6 @@ export function createPtyIpcListenerAccessors(ctx: {
     ) => void
   }
 
-  function getPtySetHiddenRendererPtyListener(): (
-    event: unknown,
-    args: { id: string; hidden: boolean }
-  ) => void {
-    const hiddenCall = onMock.mock.calls.find(
-      (call: unknown[]) => call[0] === 'pty:setHiddenRendererPty'
-    )
-    if (!hiddenCall) {
-      throw new Error('missing pty:setHiddenRendererPty listener')
-    }
-    return hiddenCall[1] as (event: unknown, args: { id: string; hidden: boolean }) => void
-  }
-
   function getPtyHiddenOutputRestoreAppliedListener(): (
     event: unknown,
     args: { id?: unknown; hiddenDropEpisode?: unknown }
@@ -140,7 +148,13 @@ export function createPtyIpcListenerAccessors(ctx: {
     if (!interestCall) {
       throw new Error('missing pty:setPtyDeliveryInterest listener')
     }
-    return interestCall[1] as (event: unknown, args: { id: string; interested: boolean }) => void
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: found by channel name, so this is production's interest listener.
+    const listener = interestCall[1] as (
+      event: unknown,
+      args: { id: string; interested: boolean; page?: string }
+    ) => void
+    return (event, args) =>
+      listener(event ?? mainWindowIpcEvent, { page: getTestRendererPage(), ...args })
   }
   const DELIVERY_RESYNC_UNANSWERED_WARNING =
     '[pty] delivery resync probe unanswered — renderer IPC unresponsive'
@@ -204,7 +218,9 @@ export function createPtyIpcListenerAccessors(ctx: {
     getMainWindowWebContentsListener,
     getMainFrameNavigationListener,
     getPtyResizeListener,
-    getPtySetHiddenRendererPtyListener,
+    getPtySetRendererPtyConsumerListener,
+    attachTestPaneView,
+    openTestWindowPage,
     getPtyHiddenOutputRestoreAppliedListener,
     getPtySetDeliveryInterestListener,
     DELIVERY_RESYNC_UNANSWERED_WARNING,

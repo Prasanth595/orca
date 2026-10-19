@@ -1,9 +1,15 @@
+import { shouldDropRendererPtyData } from './pty-hidden-delivery-gate'
 import { describe, expect, it, vi } from 'vitest'
 import { spawnMock } from './pty-ipc-mock-registry'
 import { setupPtyIpcSuite } from './pty-ipc-test-harness'
 import { redactPtyIdForDiagnostics } from '../../shared/pty-delivery-diagnostics'
 import { registerPtyHandlers } from './pty/register-handlers'
 import { getPtyRendererDeliveryDebugSnapshot } from './pty/delivery/debug'
+import {
+  openTestRendererPage,
+  sendTestAttachment,
+  getTestPageTransport
+} from './pty-ipc-test-pane-attachments'
 
 vi.mock('electron', () => import('./pty-ipc-mock-registry').then((m) => m.electronModuleMock()))
 vi.mock('fs', () => import('./pty-ipc-mock-registry').then((m) => m.fsModuleMock()))
@@ -61,7 +67,7 @@ describe('registerPtyHandlers', () => {
     getPtySetActiveRendererPtyListener,
     getPtySetRendererPtyVisibleListener,
     getMainFrameNavigationListener,
-    getPtySetHiddenRendererPtyListener,
+    getPtySetRendererPtyConsumerListener,
     getPtySetDeliveryInterestListener
   } = setupPtyIpcSuite()
 
@@ -90,24 +96,50 @@ describe('registerPtyHandlers', () => {
 
       daemon.setPtyBackgrounded.mockClear()
       handlers.clear()
-      let rawSubscriberPresent = false
       const nextRuntime = {
         setPtyController: vi.fn(),
-        hasRawTerminalViewSubscriber: vi.fn(() => rawSubscriberPresent),
-        onRemoteTerminalViewPresenceChanged: null as ((id: string) => void) | null,
-        registerRawTerminalViewSubscriber(id: string): void {
-          rawSubscriberPresent = true
-          this.onRemoteTerminalViewPresenceChanged?.(id)
-        }
+        hasRawTerminalViewSubscriber: vi.fn(() => false)
       }
       registerPtyHandlers(mainWindow as never, nextRuntime as never)
+      openTestRendererPage(mainWindowIpcEvent, 'known-id-page')
 
-      nextRuntime.registerRawTerminalViewSubscriber(result.id)
-      // Repeated presence signals must remain deduplicated.
-      nextRuntime.onRemoteTerminalViewPresenceChanged?.(result.id)
+      getPtySetRendererPtyVisibleListener()(null, { id: result.id, visible: true })
+      // The first known-id report must establish pacing, and repeated reports deduplicate.
+      getPtySetRendererPtyVisibleListener()(null, { id: result.id, visible: true })
 
       expect(daemon.setPtyBackgrounded).toHaveBeenCalledOnce()
       expect(daemon.setPtyBackgrounded).toHaveBeenCalledWith(result.id, false)
+    })
+    it('keeps successor interest across predecessor close and unclaimed late setup', () => {
+      registerPtyHandlers(mainWindow as never)
+      const predecessor = getTestPageTransport()
+      sendTestAttachment(mainWindowIpcEvent, 'pty:setPtyDeliveryInterest', {
+        id: 'shared',
+        interested: true
+      })
+      sendTestAttachment(mainWindowIpcEvent, 'pty:openRendererPage', { correlation: 'successor' })
+      const successor = getTestPageTransport()
+      sendTestAttachment(mainWindowIpcEvent, 'pty:setPtyDeliveryInterest', {
+        id: 'shared',
+        interested: true
+      })
+      // A late setup request grants no attachment and cannot supersede the active owner's token.
+      sendTestAttachment(mainWindowIpcEvent, 'pty:openRendererPage', {
+        correlation: 'late-old-request'
+      })
+      predecessor.port?.close()
+      expect(shouldDropRendererPtyData('shared', {})).toBe(false)
+      sendTestAttachment(mainWindowIpcEvent, 'pty:setPtyDeliveryInterest', {
+        page: predecessor.page,
+        id: 'shared',
+        interested: false
+      })
+      expect(shouldDropRendererPtyData('shared', {})).toBe(false)
+      // A different owner's close must not clear the successor's interest.
+      getTestPageTransport().port?.close()
+      expect(shouldDropRendererPtyData('shared', {})).toBe(false)
+      successor.port?.close()
+      expect(shouldDropRendererPtyData('shared', {})).toBe(true)
     })
     it('drops hidden PTY data after model ingestion and emits one out-of-band restore marker', async () => {
       vi.useFakeTimers()
@@ -131,10 +163,11 @@ describe('registerPtyHandlers', () => {
           rows: 24,
           sessionId: 'daemon-session'
         })) as { id: string }
-        const setHidden = getPtySetHiddenRendererPtyListener()
+        const setConsuming = getPtySetRendererPtyConsumerListener()
         mainWindow.webContents.send.mockClear()
 
-        setHidden(null, { id: result.id, hidden: true })
+        getPtySetRendererPtyVisibleListener()(null, { id: result.id, visible: false })
+        setConsuming(null, { id: result.id, consuming: false })
         daemon.emitData(result.id, 'hidden output')
         vi.advanceTimersByTime(50)
 
@@ -184,12 +217,12 @@ describe('registerPtyHandlers', () => {
           rows: 24,
           sessionId: 'daemon-session'
         })) as { id: string }
-        const setHidden = getPtySetHiddenRendererPtyListener()
+        const setConsuming = getPtySetRendererPtyConsumerListener()
         const setVisible = getPtySetRendererPtyVisibleListener()
 
         // The two visibility signals contradict: pane reports visible while the hidden-delivery gate still holds it.
         setVisible(null, { id: result.id, visible: true })
-        setHidden(null, { id: result.id, hidden: true })
+        setConsuming(null, { id: result.id, consuming: false })
         daemon.emitData(result.id, 'starved visible output')
         vi.advanceTimersByTime(50)
 
@@ -204,7 +237,7 @@ describe('registerPtyHandlers', () => {
         )
 
         // Unhiding resolves the contradiction.
-        setHidden(null, { id: result.id, hidden: false })
+        setConsuming(null, { id: result.id, consuming: true })
         expect(getPtyRendererDeliveryDebugSnapshot()).toMatchObject({
           hiddenDeliveryGatedPtyCount: 0,
           hiddenDeliveryGatedVisiblePtyCount: 0
@@ -225,10 +258,10 @@ describe('registerPtyHandlers', () => {
           rows: 24,
           sessionId: 'daemon-session'
         })) as { id: string }
-        const setHidden = getPtySetHiddenRendererPtyListener()
+        const setConsuming = getPtySetRendererPtyConsumerListener()
         const setVisible = getPtySetRendererPtyVisibleListener()
         setVisible(null, { id: result.id, visible: true })
-        setHidden(null, { id: result.id, hidden: true })
+        setConsuming(null, { id: result.id, consuming: false })
         daemon.emitData(result.id, 'starved visible output')
         vi.advanceTimersByTime(50)
 
@@ -268,10 +301,10 @@ describe('registerPtyHandlers', () => {
           cwd: '/tmp'
         })) as { id: string }
         const writeListener = getPtyWriteListener()
-        const setHidden = getPtySetHiddenRendererPtyListener()
+        const setConsuming = getPtySetRendererPtyConsumerListener()
 
         writeListener(mainWindowIpcEvent, { id: spawnResult.id, data: 'a' })
-        setHidden(null, { id: spawnResult.id, hidden: true })
+        setConsuming(null, { id: spawnResult.id, consuming: false })
         mainWindow.webContents.send.mockClear()
 
         // A keystroke-sized redraw would take the immediate path when visible.
@@ -300,11 +333,11 @@ describe('registerPtyHandlers', () => {
           rows: 24,
           cwd: '/tmp'
         })) as { id: string }
-        const setHidden = getPtySetHiddenRendererPtyListener()
+        const setConsuming = getPtySetRendererPtyConsumerListener()
         const setInterest = getPtySetDeliveryInterestListener()
         mainWindow.webContents.send.mockClear()
 
-        setHidden(null, { id: spawnResult.id, hidden: true })
+        setConsuming(null, { id: spawnResult.id, consuming: false })
         setInterest(null, { id: spawnResult.id, interested: true })
         mockProc.emitData('sidecar bytes')
         vi.advanceTimersByTime(2)
@@ -339,13 +372,13 @@ describe('registerPtyHandlers', () => {
           rows: 24,
           cwd: '/tmp'
         })) as { id: string }
-        const setHidden = getPtySetHiddenRendererPtyListener()
+        const setConsuming = getPtySetRendererPtyConsumerListener()
         const setInterest = getPtySetDeliveryInterestListener()
         const setActive = getPtySetActiveRendererPtyListener()
         getMainFrameNavigationListener()()
         mainWindow.webContents.send.mockClear()
 
-        setHidden(null, { id: spawnResult.id, hidden: true })
+        setConsuming(null, { id: spawnResult.id, consuming: false })
         setInterest(null, { id: spawnResult.id, interested: true })
         mockProc.emitData('boot-window sidecar bytes')
         vi.advanceTimersByTime(2)
@@ -357,7 +390,7 @@ describe('registerPtyHandlers', () => {
         })
 
         const timerCountBeforeNoops = vi.getTimerCount()
-        setHidden(null, { id: spawnResult.id, hidden: true })
+        setConsuming(null, { id: spawnResult.id, consuming: false })
         setInterest(null, { id: spawnResult.id, interested: true })
         setActive(null, { id: spawnResult.id, active: false })
         expect(vi.getTimerCount()).toBe(timerCountBeforeNoops)
@@ -394,10 +427,10 @@ describe('registerPtyHandlers', () => {
           rows: 24,
           cwd: '/tmp'
         })) as { id: string }
-        const setHidden = getPtySetHiddenRendererPtyListener()
+        const setConsuming = getPtySetRendererPtyConsumerListener()
         mainWindow.webContents.send.mockClear()
 
-        setHidden(null, { id: spawnResult.id, hidden: true })
+        setConsuming(null, { id: spawnResult.id, consuming: false })
         mockProc.emitData('still delivered')
         vi.advanceTimersByTime(2)
 
@@ -430,7 +463,7 @@ describe('registerPtyHandlers', () => {
             cwd: '/tmp'
           })) as { id: string }
           getMainFrameNavigationListener()()
-          getPtySetHiddenRendererPtyListener()(null, { id: spawnResult.id, hidden: true })
+          getPtySetRendererPtyConsumerListener()(null, { id: spawnResult.id, consuming: false })
           mainWindow.webContents.send.mockClear()
           mockProc.emitData('blocked while gate disabled')
           vi.advanceTimersByTime(2)
@@ -457,7 +490,7 @@ describe('registerPtyHandlers', () => {
         }
       }
     )
-    it('drops queued pending data when a PTY is marked hidden', async () => {
+    it('drops queued pending data when the last consuming view stops', async () => {
       vi.useFakeTimers()
       const mockProc = createMockProc()
       spawnMock.mockReturnValue(mockProc.proc)
@@ -469,12 +502,12 @@ describe('registerPtyHandlers', () => {
           rows: 24,
           cwd: '/tmp'
         })) as { id: string }
-        const setHidden = getPtySetHiddenRendererPtyListener()
+        const setConsuming = getPtySetRendererPtyConsumerListener()
         mainWindow.webContents.send.mockClear()
 
         mockProc.emitData('queued before hidden')
         expect(mainWindow.webContents.send).not.toHaveBeenCalled()
-        setHidden(null, { id: spawnResult.id, hidden: true })
+        setConsuming(null, { id: spawnResult.id, consuming: false })
 
         // The queued bytes are model-owned; only the restore marker goes out.
         expect(mainWindow.webContents.send).toHaveBeenCalledTimes(1)
@@ -490,7 +523,7 @@ describe('registerPtyHandlers', () => {
         vi.useRealTimers()
       }
     })
-    it('re-emits the restore marker on unhide and resumes delivery', async () => {
+    it('re-emits the restore marker when a view consumes again and resumes delivery', async () => {
       vi.useFakeTimers()
       const mockProc = createMockProc()
       spawnMock.mockReturnValue(mockProc.proc)
@@ -502,16 +535,16 @@ describe('registerPtyHandlers', () => {
           rows: 24,
           cwd: '/tmp'
         })) as { id: string }
-        const setHidden = getPtySetHiddenRendererPtyListener()
+        const setConsuming = getPtySetRendererPtyConsumerListener()
         mainWindow.webContents.send.mockClear()
 
-        setHidden(null, { id: spawnResult.id, hidden: true })
+        setConsuming(null, { id: spawnResult.id, consuming: false })
         mockProc.emitData('dropped while hidden')
         vi.advanceTimersByTime(2)
         expect(mainWindow.webContents.send).toHaveBeenCalledTimes(1)
 
-        // Why: a renderer reload can replace the view that latched restore-needed; unhide repeats the marker so the live view heals.
-        setHidden(null, { id: spawnResult.id, hidden: false })
+        // Why: a renderer reload can replace the view that latched restore-needed; a consuming report repeats the marker so the live view heals.
+        setConsuming(null, { id: spawnResult.id, consuming: true })
         expect(mainWindow.webContents.send).toHaveBeenCalledTimes(2)
         expect(mainWindow.webContents.send).toHaveBeenLastCalledWith('pty:modelRestoreNeeded', {
           id: spawnResult.id,
@@ -541,11 +574,11 @@ describe('registerPtyHandlers', () => {
           rows: 24,
           cwd: '/tmp'
         })) as { id: string }
-        const setHidden = getPtySetHiddenRendererPtyListener()
+        const setConsuming = getPtySetRendererPtyConsumerListener()
         mainWindow.webContents.send.mockClear()
 
-        setHidden(null, { id: spawnResult.id, hidden: true })
-        setHidden(null, { id: spawnResult.id, hidden: false })
+        setConsuming(null, { id: spawnResult.id, consuming: false })
+        setConsuming(null, { id: spawnResult.id, consuming: true })
 
         expect(mainWindow.webContents.send).not.toHaveBeenCalled()
       } finally {
@@ -564,16 +597,18 @@ describe('registerPtyHandlers', () => {
           rows: 24,
           cwd: '/tmp'
         })) as { id: string }
-        const setHidden = getPtySetHiddenRendererPtyListener()
+        const setConsuming = getPtySetRendererPtyConsumerListener()
+        // Why relative: earlier cases' unexited PTYs stay owned, and no view consumes them.
+        const gatedBefore = getPtyRendererDeliveryDebugSnapshot().hiddenDeliveryGatedPtyCount
 
-        setHidden(null, { id: spawnResult.id, hidden: true })
+        setConsuming(null, { id: spawnResult.id, consuming: false })
         expect(getPtyRendererDeliveryDebugSnapshot()).toMatchObject({
-          hiddenDeliveryGatedPtyCount: 1
+          hiddenDeliveryGatedPtyCount: gatedBefore + 1
         })
 
         mockProc.emitExit(0)
         expect(getPtyRendererDeliveryDebugSnapshot()).toMatchObject({
-          hiddenDeliveryGatedPtyCount: 0,
+          hiddenDeliveryGatedPtyCount: gatedBefore,
           deliveryInterestPtyCount: 0
         })
       } finally {
@@ -592,17 +627,17 @@ describe('registerPtyHandlers', () => {
           rows: 24,
           cwd: '/tmp'
         })) as { id: string }
-        const setHidden = getPtySetHiddenRendererPtyListener()
+        const setConsuming = getPtySetRendererPtyConsumerListener()
         mainWindow.webContents.send.mockClear()
 
-        setHidden(null, { id: spawnResult.id, hidden: true })
+        setConsuming(null, { id: spawnResult.id, consuming: false })
         mockProc.emitData('dropped while hidden')
         vi.advanceTimersByTime(2)
         expect(mainWindow.webContents.send).toHaveBeenCalledTimes(1)
 
-        // Why: a hidden remount (tab move, parking handoff) re-marks without an unhide, so re-marking must NOT erase drop memory.
-        setHidden(null, { id: spawnResult.id, hidden: true })
-        setHidden(null, { id: spawnResult.id, hidden: false })
+        // Why: a hidden remount (tab move, parking handoff) reports hidden again without a reveal; that must NOT erase drop memory.
+        setConsuming(null, { id: spawnResult.id, consuming: false })
+        setConsuming(null, { id: spawnResult.id, consuming: true })
 
         expect(mainWindow.webContents.send).toHaveBeenCalledTimes(2)
         expect(mainWindow.webContents.send).toHaveBeenLastCalledWith('pty:modelRestoreNeeded', {
@@ -614,7 +649,7 @@ describe('registerPtyHandlers', () => {
         vi.useRealTimers()
       }
     })
-    it('keeps drop memory across a renderer reload while clearing hidden/interest state', async () => {
+    it('keeps drop memory across a renderer reload while retiring the old page connections', async () => {
       vi.useFakeTimers()
       const runtime = {
         setPtyController: vi.fn(),
@@ -631,33 +666,27 @@ describe('registerPtyHandlers', () => {
       const daemon = installObservableDaemonTestProvider()
       try {
         registerPtyHandlers(mainWindow as never, runtime as never)
-        // Why daemon provider: survives reloads and keeps orphan-kill off this webContents, so 'did-finish-load' means gate reset only.
-        const reloadHandlers = mainWindow.webContents.on.mock.calls
-          .filter((call: unknown[]) => call[0] === 'did-finish-load')
-          .map((call: unknown[]) => call[1] as () => void)
-        expect(reloadHandlers).toHaveLength(1)
+        // Why daemon provider: its PTYs survive the reload, so only the page's records die.
         const result = (await handlers.get('pty:spawn')!(null, {
           cols: 80,
           rows: 24,
           sessionId: 'daemon-session'
         })) as { id: string }
-        const setHidden = getPtySetHiddenRendererPtyListener()
+        const setConsuming = getPtySetRendererPtyConsumerListener()
         mainWindow.webContents.send.mockClear()
 
-        setHidden(null, { id: result.id, hidden: true })
+        setConsuming(null, { id: result.id, consuming: false })
         daemon.emitData(result.id, 'dropped while hidden')
         vi.advanceTimersByTime(50)
         expect(mainWindow.webContents.send).toHaveBeenCalledTimes(1)
 
-        // Renderer reload: hidden marks die with the old renderer, but dropped bytes were never restored — memory must survive.
-        reloadHandlers[0]()
-        expect(getPtyRendererDeliveryDebugSnapshot()).toMatchObject({
-          hiddenDeliveryGatedPtyCount: 0
-        })
+        // Renderer reload: the old page's connections die, but dropped bytes were never restored — memory must survive.
+        openTestRendererPage(mainWindowIpcEvent, 'reloaded-page')
+        expect(mainWindow.webContents.send).toHaveBeenCalledTimes(1)
 
-        // The reloaded pane's first sync re-marks hidden, then reveals.
-        setHidden(null, { id: result.id, hidden: true })
-        setHidden(null, { id: result.id, hidden: false })
+        // The reloaded pane attaches hidden, then reveals.
+        setConsuming(null, { id: result.id, consuming: false })
+        setConsuming(null, { id: result.id, consuming: true })
         expect(mainWindow.webContents.send).toHaveBeenLastCalledWith('pty:modelRestoreNeeded', {
           id: result.id,
           hiddenDropEpisode: expect.any(Number),
@@ -685,22 +714,18 @@ describe('registerPtyHandlers', () => {
       const daemon = installObservableDaemonTestProvider()
       try {
         registerPtyHandlers(mainWindow as never, runtime as never)
-        const reloadHandlers = mainWindow.webContents.on.mock.calls
-          .filter((call: unknown[]) => call[0] === 'did-finish-load')
-          .map((call: unknown[]) => call[1] as () => void)
-        expect(reloadHandlers).toHaveLength(1)
         const result = (await handlers.get('pty:spawn')!(null, {
           cols: 80,
           rows: 24,
           sessionId: 'daemon-session'
         })) as { id: string }
-        const setHidden = getPtySetHiddenRendererPtyListener()
+        const setConsuming = getPtySetRendererPtyConsumerListener()
         const setInterest = getPtySetDeliveryInterestListener()
         mainWindow.webContents.send.mockClear()
 
         // A sidecar holds interest, so hidden bytes still flow.
         setInterest(null, { id: result.id, interested: true })
-        setHidden(null, { id: result.id, hidden: true })
+        setConsuming(null, { id: result.id, consuming: false })
         daemon.emitData(result.id, 'sidecar bytes')
         vi.advanceTimersByTime(50)
         expect(mainWindow.webContents.send).toHaveBeenLastCalledWith(
@@ -709,9 +734,9 @@ describe('registerPtyHandlers', () => {
         )
 
         // Why: the renderer reload killed the sidecar's ref count without a release IPC — the leaked hold must not force-feed the PTY forever.
-        reloadHandlers[0]()
+        openTestRendererPage(mainWindowIpcEvent, 'reloaded-page')
         mainWindow.webContents.send.mockClear()
-        setHidden(null, { id: result.id, hidden: true })
+        setConsuming(null, { id: result.id, consuming: false })
         daemon.emitData(result.id, 'gated after reload')
         vi.advanceTimersByTime(50)
 

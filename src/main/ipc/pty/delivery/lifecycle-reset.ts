@@ -3,21 +3,14 @@ import {
   didFinishLoadHandler,
   didFinishLoadWebContents,
   rendererDidStartNavigationHandler,
-  rendererGateResetGoneHandler,
-  rendererGateResetLoadHandler,
-  rendererGateResetWebContents,
   rendererLifecycleResetHandler,
   rendererLifecycleResetWebContents,
   setDidFinishLoadHandler,
-  setRendererGateResetState,
   setRendererLifecycleResetState
 } from '../provider/listener-lifecycle'
+import { retireRendererPages } from './renderer-page'
 import { mainDeliveryBreadcrumbs, resetRendererDeliveryAccountingForLifecycleReset } from './debug'
-import {
-  activeRendererPtys,
-  invalidatePendingPtyDrainPriority,
-  visibleRendererPtys
-} from './visibility-state'
+import { activeRendererPtys, invalidatePendingPtyDrainPriority } from './visibility-state'
 
 export function clearDidFinishLoadHandler(): void {
   if (didFinishLoadHandler && didFinishLoadWebContents) {
@@ -29,10 +22,9 @@ export function clearDidFinishLoadHandler(): void {
 export function markRendererPtysHiddenForRendererLifecycleReset(): void {
   // A reload/crash in the breadcrumb history is load-bearing context for any freeze report.
   mainDeliveryBreadcrumbs.record('renderer-lifecycle-reset')
-  // Why: renderer-owned hints die with the page; clear visibility so surviving daemon/SSH PTYs fail closed until the new renderer reports.
+  // Renderer scheduling hints reset independently of document transport ownership.
   const activePriorityChanged = activeRendererPtys.size > 0
   activeRendererPtys.clear()
-  visibleRendererPtys.clear()
   // Why: the dead page never ACKs its in-flight bytes, so leaked accounting would delivery-gate surviving PTYs forever after a reload/crash.
   resetRendererDeliveryAccountingForLifecycleReset()
   if (activePriorityChanged) {
@@ -68,7 +60,10 @@ export function registerRendererLifecycleResetHandlers(
   if (!webContents) {
     return
   }
-  const handler = markRendererPtysHiddenForRendererLifecycleReset
+  const handler = (): void => {
+    markRendererPtysHiddenForRendererLifecycleReset()
+    retireRendererPages(webContents)
+  }
   const navigationHandler = (details: { isMainFrame: boolean; isSameDocument: boolean }) => {
     if (!details.isMainFrame || details.isSameDocument) {
       return
@@ -83,19 +78,4 @@ export function registerRendererLifecycleResetHandlers(
   webContents.on('did-start-navigation', navigationHandler)
   webContents.on('render-process-gone', handler)
   webContents.on('destroyed', handler)
-}
-
-export function clearRendererGateResetHandlers(): void {
-  if (rendererGateResetWebContents) {
-    if (rendererGateResetLoadHandler) {
-      rendererGateResetWebContents.removeListener('did-finish-load', rendererGateResetLoadHandler)
-    }
-    if (rendererGateResetGoneHandler) {
-      rendererGateResetWebContents.removeListener(
-        'render-process-gone',
-        rendererGateResetGoneHandler
-      )
-    }
-  }
-  setRendererGateResetState({ contents: null, load: null, gone: null })
 }

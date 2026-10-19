@@ -19,6 +19,10 @@ import {
 } from '../../../daemon/daemon-errors'
 import { ptyIncarnationById } from '../provider/ownership-state'
 import { releaseAbsentPaneOwner } from './absent-pane-owner'
+import {
+  withRendererAttachmentBinding,
+  type RendererAttachmentBinding
+} from '../delivery/renderer-attachments'
 import { spawnCommitBindingOrigin } from '../../../persistence/loading-store/pty-binding-span'
 
 export type StablePaneOwner = {
@@ -179,6 +183,8 @@ export type StablePaneSpawnContext = {
   connectionId?: string | null
   resolveOwner?: () => StablePaneOwner | null
   onFreshSpawn?: (result: PtySpawnResult) => void
+  /** The requesting window connection's record, bound before the provider can emit. */
+  rendererAttachment?: RendererAttachmentBinding | null
 }
 
 export function stablePanePersistenceFence(
@@ -225,6 +231,7 @@ export async function attachStablePaneOwner(
   const { owner, provider, spawnOptions } = args
   let result: PtySpawnResult
   try {
+    args.rendererAttachment?.bind(owner.ptyId)
     result = await provider.spawn({
       ...spawnOptions,
       sessionId: owner.ptyId,
@@ -292,7 +299,9 @@ export async function spawnForStablePane(
       return attached
     }
   }
-  const result = await args.provider.spawn(args.spawnOptions)
+  const result = await args.provider.spawn(
+    withRendererAttachmentBinding(args.spawnOptions, args.rendererAttachment)
+  )
   args.onFreshSpawn?.(result)
   return { result, owner: null }
 }

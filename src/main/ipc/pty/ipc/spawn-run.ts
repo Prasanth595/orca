@@ -17,6 +17,7 @@ import { commitPtyIpcSpawn } from './spawn-commit'
 import { createPtyIpcSpawnState, type PtyIpcSpawnState } from './spawn-state'
 import { triggerPtySpawnPushTargetMaterialization } from './spawn-push-target-materialization'
 import type { PtySpawnIpcArgs, PtySpawnIpcDeps } from './spawn-types'
+import type { RendererAttachmentBinding } from '../delivery/renderer-attachments'
 import { ORCA_LAYOUT_OWNER_IS_MAIN } from '../../../../shared/layout-owner-switch'
 import { refuseClosedPaneSpawn } from './closed-pane-spawn-refusal'
 
@@ -28,8 +29,12 @@ function releaseAbandonedAgentTeamsLeader(ctx: PtyIpcSpawnState): void {
   ctx.agentTeamsLeaderHandle = null
 }
 
-export async function runPtyIpcSpawn(deps: PtySpawnIpcDeps, args: PtySpawnIpcArgs) {
-  const ctx = createPtyIpcSpawnState(deps, args)
+export async function runPtyIpcSpawn(
+  deps: PtySpawnIpcDeps,
+  args: PtySpawnIpcArgs,
+  rendererAttachment: RendererAttachmentBinding | null = null
+) {
+  const ctx = createPtyIpcSpawnState(deps, args, rendererAttachment)
   const replacedPaneKey =
     args.replacesPtyId !== undefined ? resolveEarlyPaneSpawnReservationKey(args) : null
   if (replacedPaneKey) {
@@ -92,9 +97,6 @@ export async function runPtyIpcSpawn(deps: PtySpawnIpcDeps, args: PtySpawnIpcArg
   } catch (caught) {
     const err = endPaneAgentLaunch(ctx, { error: caught }) ?? caught
     releaseAbandonedAgentTeamsLeader(ctx)
-    if (ctx.preSpawnHiddenMarkId !== null) {
-      ctx.deps.transitionSpawnHiddenRendererPtyDeliveryState(ctx.preSpawnHiddenMarkId, false)
-    }
     if (ctx.pendingRegistrationPtyId) {
       deps.runtime?.cancelPendingPtyRegistration?.(
         ctx.pendingRegistrationPtyId,

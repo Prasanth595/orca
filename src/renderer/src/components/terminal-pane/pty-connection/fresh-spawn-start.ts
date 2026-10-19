@@ -175,8 +175,11 @@ export function bindStartFreshSpawn(session: ConnectPanePtySession): void {
             void window.api.pty.clearPendingPaneSerializer(session.cacheKey, gen).catch(() => {})
           }
           if (!accepted) {
-            // A rejected reattach ends this spawn; nothing later clears the fence.
+            // A rejected reattach ends this spawn; nothing later clears the fence or reports its id.
             releaseDeferredCwdFence()
+            if (resolvedPtyId) {
+              session.transport.abandonLocalPtyAttachment?.(resolvedPtyId)
+            }
           }
           return accepted ? resolvedPtyId : null
         }

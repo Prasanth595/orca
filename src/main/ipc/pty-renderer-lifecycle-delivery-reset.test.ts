@@ -1,6 +1,8 @@
+import { shouldDropRendererPtyData } from './pty-hidden-delivery-gate'
 import { describe, expect, it, vi } from 'vitest'
 import { spawnMock } from './pty-ipc-mock-registry'
 import { setupPtyIpcSuite } from './pty-ipc-test-harness'
+import { openTestRendererPage, closeTestRendererPage } from './pty-ipc-test-pane-attachments'
 import { registerPtyHandlers } from './pty/register-handlers'
 import { getPtyRendererDeliveryDebugSnapshot } from './pty/delivery/debug'
 
@@ -128,7 +130,7 @@ describe('registerPtyHandlers', () => {
       vi.useRealTimers()
     }
   })
-  it('marks visible renderer PTYs hidden while the renderer lifecycle resets', async () => {
+  it("hands a reloaded page's PTYs to main until the new page attaches", async () => {
     vi.useFakeTimers()
     const mockProc = createMockProc()
     spawnMock.mockReturnValue(mockProc.proc)
@@ -141,29 +143,41 @@ describe('registerPtyHandlers', () => {
         cwd: '/tmp'
       })) as { id: string }
       const setRendererPtyVisible = getPtySetRendererPtyVisibleListener()
-      const handleRendererLoading = getMainFrameNavigationListener()
-      const handleRendererDispatcherReady = getPtyRendererDispatcherReadyListener()
+      setRendererPtyVisible(null, { id: spawnResult.id, visible: true })
+      getMainFrameNavigationListener()()
+      expect(shouldDropRendererPtyData(spawnResult.id, {})).toBe(false)
+      // A connection first opened during navigation dies with that endpoint too.
+      getPtySetRendererPtyVisibleListener()(null, { id: 'late-known-id', visible: true })
+      // The document endpoint ends independently of successful or error navigation events.
+      closeTestRendererPage()
+      expect(shouldDropRendererPtyData('late-known-id', {})).toBe(true)
+      // Reloaded page's dispatcher re-registers, releasing held sends (§1b).
+      getPtyRendererDispatcherReadyListener()()
       mainWindow.webContents.send.mockClear()
 
-      setRendererPtyVisible(null, { id: spawnResult.id, visible: true })
-      handleRendererLoading()
-      // Reloaded page's dispatcher re-registers, releasing held sends (§1b).
-      handleRendererDispatcherReady()
       mockProc.emitData('reload-gap output')
       vi.advanceTimersByTime(2)
-
-      expect(mainWindow.webContents.send).toHaveBeenCalledWith('pty:data', {
+      expect(mainWindow.webContents.send).not.toHaveBeenCalledWith(
+        'pty:data',
+        expect.objectContaining({ data: 'reload-gap output' })
+      )
+      expect(mainWindow.webContents.send).toHaveBeenCalledWith('pty:modelRestoreNeeded', {
         id: spawnResult.id,
-        data: 'reload-gap output',
-        background: true
+        hiddenDropEpisode: expect.any(Number),
+        reason: 'hidden-drop'
       })
 
-      mainWindow.webContents.send.mockClear()
+      // The new page's view attaches: it pulls the restore, then owns live bytes.
+      openTestRendererPage(mainWindowIpcEvent, 'reloaded-page')
       setRendererPtyVisible(null, { id: spawnResult.id, visible: true })
+      expect(mainWindow.webContents.send).toHaveBeenLastCalledWith('pty:modelRestoreNeeded', {
+        id: spawnResult.id,
+        hiddenDropEpisode: expect.any(Number),
+        reason: 'unhide'
+      })
       mockProc.emitData('visible output')
       vi.advanceTimersByTime(2)
-
-      expect(mainWindow.webContents.send).toHaveBeenCalledWith('pty:data', {
+      expect(mainWindow.webContents.send).toHaveBeenLastCalledWith('pty:data', {
         id: spawnResult.id,
         data: 'visible output'
       })
@@ -450,6 +464,7 @@ describe('registerPtyHandlers', () => {
 
 describe('PTY renderer send recovery', () => {
   const {
+    attachTestPaneView,
     handlers,
     mainWindow,
     mainWindowIpcEvent,
@@ -467,6 +482,7 @@ describe('PTY renderer send recovery', () => {
     try {
       const provider = installObservableDaemonTestProvider()
       registerPtyHandlers(mainWindow as never)
+      attachTestPaneView('send-fail-partial')
       mainWindow.webContents.send.mockClear()
       const firstChunk = 'x'.repeat(16 * 1024)
       let failed = false
@@ -516,6 +532,7 @@ describe('PTY renderer send recovery', () => {
     try {
       const provider = installObservableDaemonTestProvider()
       registerPtyHandlers(mainWindow as never)
+      attachTestPaneView('send-fail-reset')
       const resetRenderer = getMainFrameNavigationListener()
       const readyRenderer = getPtyRendererDispatcherReadyListener()
       let failed = false
@@ -598,6 +615,7 @@ describe('PTY renderer send recovery', () => {
     try {
       const provider = installObservableDaemonTestProvider()
       registerPtyHandlers(mainWindow as never)
+      attachTestPaneView('send-fail-exit')
       const pending = 'x'.repeat(320 * 1024)
       provider.emitData('send-fail-exit', pending)
       expect(provider.pauseProducer).toHaveBeenCalledWith('send-fail-exit')
@@ -639,6 +657,7 @@ describe('PTY renderer send recovery', () => {
     try {
       const provider = installObservableDaemonTestProvider()
       registerPtyHandlers(mainWindow as never)
+      attachTestPaneView('flood-pty')
       provider.emitData('flood-pty', 'x'.repeat(3 * 1024 * 1024))
       expect(getPtyRendererDeliveryDebugSnapshot()).toMatchObject({
         pendingPtyCount: 1,

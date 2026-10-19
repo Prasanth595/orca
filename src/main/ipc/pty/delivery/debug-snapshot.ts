@@ -6,29 +6,37 @@ import {
 } from '../../../../shared/pty-delivery-diagnostics'
 import {
   getHiddenRendererPtyDeliveryDebug,
-  getHiddenRendererPtyIds,
-  isHiddenRendererPty
+  getRendererDeliveryGatePtyIds,
+  shouldDropRendererPtyData
 } from '../../pty-hidden-delivery-gate'
+import { ptyOwnership } from '../provider/ownership-state'
+import { getRendererAttachmentPtyIds } from './renderer-attachments'
 import {
   lastPowerResumeAtMs,
   lastPowerSuspendAtMs,
   mainDeliveryBreadcrumbs,
   type PtyRendererDeliveryDebugSnapshot
 } from './debug'
-import { activeRendererPtys, visibleRendererPtys } from './visibility-state'
+import { activeRendererPtys, hasLocalVisibleRendererView } from './visibility-state'
 import { DELIVERY_DIAGNOSTICS_MAX_PTYS } from './constants'
 import type { PtyIpcSession } from '../session'
 
-export function buildMainDeliveryDiagnostics(session: PtyIpcSession): PtyMainDeliveryDiagnostics {
-  const now = Date.now()
-  // Include hidden/visible/active members even without an accounting entry: a pty gated before its first byte is exactly the wedge case to surface.
-  const ids = new Set([
+/** Every PTY delivery could concern, so a pty gated before its first byte still surfaces (the wedge case). */
+function collectDeliveryDiagnosticPtyIds(session: PtyIpcSession): Set<string> {
+  return new Set([
     ...session.rendererDeliveryAccountingByPty.keys(),
     ...session.pendingData.keys(),
-    ...getHiddenRendererPtyIds(),
-    ...visibleRendererPtys,
-    ...activeRendererPtys
+    ...activeRendererPtys,
+    ...getRendererDeliveryGatePtyIds(),
+    ...getRendererAttachmentPtyIds(),
+    ...ptyOwnership.keys()
   ])
+}
+
+export function buildMainDeliveryDiagnostics(session: PtyIpcSession): PtyMainDeliveryDiagnostics {
+  const now = Date.now()
+  const settings = session.getSettings?.()
+  const ids = collectDeliveryDiagnosticPtyIds(session)
   const perPty: PtyPerPtyDeliveryDiagnostics[] = []
   for (const id of ids) {
     const accounting = session.rendererDeliveryAccountingByPty.get(id)
@@ -38,8 +46,8 @@ export function buildMainDeliveryDiagnostics(session: PtyIpcSession): PtyMainDel
       ackedChars: accounting?.ackedChars ?? 0,
       inFlightChars: accounting ? accounting.sentChars - accounting.ackedChars : 0,
       pendingChars: session.pendingData.get(id)?.data.length ?? 0,
-      hidden: isHiddenRendererPty(id),
-      visible: visibleRendererPtys.has(id),
+      hidden: shouldDropRendererPtyData(id, settings),
+      visible: hasLocalVisibleRendererView(id),
       active: activeRendererPtys.has(id),
       msSinceLastSend: accounting ? now - accounting.lastSendAtMs : null,
       msSinceLastAck: accounting?.lastAckAtMs == null ? null : now - accounting.lastAckAtMs
@@ -81,16 +89,23 @@ export function readCurrentPtyRendererDeliveryDebugSnapshot(
     }
     maxRendererInFlightCharsByPty = Math.max(maxRendererInFlightCharsByPty, inFlight)
   }
-  // Why: a pty both hidden-gated and reported visible means main is starving a visible pane (v1.4.124-rc.2.perf field lead).
+  const settings = session.getSettings?.()
+  let hiddenDeliveryGatedPtyCount = 0
+  for (const id of collectDeliveryDiagnosticPtyIds(session)) {
+    if (shouldDropRendererPtyData(id, settings)) {
+      hiddenDeliveryGatedPtyCount++
+    }
+  }
+  // Why: a pty both gated and reported visible means main is starving a visible pane (v1.4.124-rc.2.perf field lead).
   let hiddenDeliveryGatedVisiblePtyCount = 0
-  for (const id of visibleRendererPtys) {
-    if (isHiddenRendererPty(id)) {
+  for (const id of getRendererAttachmentPtyIds()) {
+    if (hasLocalVisibleRendererView(id) && shouldDropRendererPtyData(id, settings)) {
       hiddenDeliveryGatedVisiblePtyCount++
     }
   }
   let hiddenDeliveryGatedActivePtyCount = 0
   for (const id of activeRendererPtys) {
-    if (isHiddenRendererPty(id)) {
+    if (shouldDropRendererPtyData(id, settings)) {
       hiddenDeliveryGatedActivePtyCount++
     }
   }
@@ -109,6 +124,7 @@ export function readCurrentPtyRendererDeliveryDebugSnapshot(
     peakMaxRendererInFlightCharsByPty: session.peakMaxRendererInFlightCharsByPty,
     ackGatedFlushSkipCount: session.ackGatedFlushSkipCount,
     ...hiddenDeliveryDebug,
+    hiddenDeliveryGatedPtyCount,
     hiddenDeliveryGatedVisiblePtyCount,
     hiddenDeliveryGatedActivePtyCount,
     pendingDroppedChars: session.pendingDroppedChars,
@@ -146,7 +162,7 @@ export function warnIfDroppingHiddenBytesForVisiblePty(
   id: string,
   droppedChars: number
 ): void {
-  if (!visibleRendererPtys.has(id) && !activeRendererPtys.has(id)) {
+  if (!hasLocalVisibleRendererView(id) && !activeRendererPtys.has(id)) {
     return
   }
   // Recorded before the warn rate limit: the ring coalesces repeats, and the contradiction must appear in the freeze report either way.
@@ -162,7 +178,7 @@ export function warnIfDroppingHiddenBytesForVisiblePty(
   console.warn('[pty] hidden-delivery gate is dropping bytes for a visible/active pty', {
     id: redactPtyIdForDiagnostics(id),
     droppedChars,
-    visible: visibleRendererPtys.has(id),
+    visible: hasLocalVisibleRendererView(id),
     active: activeRendererPtys.has(id),
     ...readCurrentPtyRendererDeliveryDebugSnapshot(session)
   })

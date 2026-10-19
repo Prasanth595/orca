@@ -24,6 +24,10 @@ import type { PreloadApi } from '../api-types'
 import type { TerminalPanePlacement } from '../../shared/terminal-pane-placement'
 import type { AgentPaneLaunchRequest } from '../../shared/agent-pane-launch-request'
 
+import { dispatchRendererPage, sendRendererPage } from './pty-renderer-page-transport'
+
+type RendererAttachmentState = { consuming?: boolean; visible?: boolean }
+
 export const ptySessionControlApi = {
   spawn: (opts: {
     cols: number
@@ -46,8 +50,10 @@ export const ptySessionControlApi = {
     projectRuntime?: ProjectExecutionRuntimeResolution
     terminalKittyKeyboardProtocol?: boolean
     terminalColorQueryReplies?: { foreground?: string; background?: string }
-    // Why: marks the PTY hidden before its first byte so the delivery gate + model responder own spawn-time queries (terminal-query-authority.md §races).
+    // Why: an unmeasured hidden request; main only seeds its provisional size from it.
     initiallyHidden?: boolean
+    // Why: the requesting connection's record, opened in main before the provider can emit.
+    rendererAttachment?: { key: string; consuming: boolean; visible: boolean }
     // Why: closes the SIGKILL race (INVESTIGATION.md) — main sync-flushes the (worktreeId, tabId, leafId → ptyId) binding before pty:spawn returns.
     tabId?: string
     leafId?: string
@@ -84,7 +90,15 @@ export const ptySessionControlApi = {
     agentResumeUnavailable?: true
     /** Host verdict on the shell-ready marker; absent when the execution host predates the field. */
     shellReadyArmed?: boolean
-  }> => ipcRenderer.invoke('pty:spawn', opts),
+  }> =>
+    opts.rendererAttachment
+      ? dispatchRendererPage((page) =>
+          ipcRenderer.invoke('pty:spawn', {
+            ...opts,
+            rendererAttachment: { ...opts.rendererAttachment, page }
+          })
+        )
+      : ipcRenderer.invoke('pty:spawn', opts),
   write: (id: string, data: string, inputKind: TerminalInputKind): void => {
     ipcRenderer.send('pty:write', { id, data, inputKind })
   },
@@ -155,14 +169,17 @@ export const ptySessionControlApi = {
   setActiveRendererPty: (id: string, active: boolean): void => {
     ipcRenderer.send('pty:setActiveRendererPty', { id, active })
   },
-  setRendererPtyVisible: (id: string, visible: boolean): void => {
-    ipcRenderer.send('pty:setRendererPtyVisible', { id, visible })
+  openRendererAttachment: (key: string, ptyId: string, state: RendererAttachmentState): void => {
+    sendRendererPage('pty:openRendererAttachment', { ...state, key, ptyId })
   },
-  setHiddenRendererPty: (id: string, hidden: boolean): void => {
-    ipcRenderer.send('pty:setHiddenRendererPty', { id, hidden })
+  updateRendererAttachment: (key: string, state: RendererAttachmentState): void => {
+    sendRendererPage('pty:updateRendererAttachment', { ...state, key })
+  },
+  closeRendererAttachment: (key: string): void => {
+    sendRendererPage('pty:closeRendererAttachment', { key })
   },
   setPtyDeliveryInterest: (id: string, interested: boolean): void => {
-    ipcRenderer.send('pty:setPtyDeliveryInterest', { id, interested })
+    sendRendererPage('pty:setPtyDeliveryInterest', { id, interested })
   },
   publishTerminalViewAttributes: (attributes: TerminalViewAttributes): void => {
     ipcRenderer.send('pty:terminalViewAttributes', attributes)

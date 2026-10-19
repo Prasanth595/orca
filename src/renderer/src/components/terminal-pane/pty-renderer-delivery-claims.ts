@@ -1,129 +1,142 @@
-import { redactPtyIdForDiagnostics } from '../../../../shared/pty-delivery-diagnostics'
 import { recordTerminalFreezeBreadcrumb } from './terminal-freeze-breadcrumbs'
 
-const hiddenClaimCounts = new Map<string, number>()
-
-type VisibilityClaim = { ptyId: string; visible: boolean }
-
-declare const visibilityClaimOwnerBrand: unique symbol
-
-/** The mounted transport holding a claim; only its reference is ever compared. */
-export type RendererPtyVisibilityClaimOwner = object & {
-  readonly [visibilityClaimOwnerBrand]?: never
-}
-
-const visibilityClaimsByOwner = new Map<RendererPtyVisibilityClaimOwner, VisibilityClaim>()
-const visibleClaimCounts = new Map<string, number>()
-
-function sendHiddenState(ptyId: string, hidden: boolean): void {
-  recordTerminalFreezeBreadcrumb(hidden ? 'renderer-gate-mark' : 'renderer-gate-unmark', {
-    id: redactPtyIdForDiagnostics(ptyId)
-  })
-  ;(globalThis as { window?: Window }).window?.api?.pty?.setHiddenRendererPty?.(ptyId, hidden)
-}
-
-function sendVisibility(ptyId: string, visible: boolean): void {
-  ;(globalThis as { window?: Window }).window?.api?.pty?.setRendererPtyVisible?.(ptyId, visible)
-}
+export type LocalPtyDeliveryState = { consuming: boolean; visible: boolean }
 
 /**
- * Holds a hidden-delivery claim until the returned release function runs.
- * Main sees only the first-acquire/last-release transitions for each PTY.
+ * One local transport connection's record in main. Main opens it from the spawn
+ * request itself (or from a known-id attach), the connection's own reports update
+ * it, and the connection's retirement closes it. Main alone aggregates records.
  */
-export function acquireHiddenRendererPtyDeliveryClaim(ptyId: string): () => void {
-  const nextCount = (hiddenClaimCounts.get(ptyId) ?? 0) + 1
-  hiddenClaimCounts.set(ptyId, nextCount)
-  if (nextCount === 1) {
-    sendHiddenState(ptyId, true)
-  }
-
-  let released = false
-  return () => {
-    if (released) {
-      return
-    }
-    released = true
-    const currentCount = hiddenClaimCounts.get(ptyId) ?? 0
-    if (currentCount <= 1) {
-      hiddenClaimCounts.delete(ptyId)
-      sendHiddenState(ptyId, false)
-      return
-    }
-    hiddenClaimCounts.set(ptyId, currentCount - 1)
-  }
+type LocalPtyAttachment = LocalPtyDeliveryState & {
+  readonly key: string
+  opened: boolean
+  closed: boolean
 }
 
-/** Clears stale main state for a visible PTY without overriding another live
- * hidden owner that is still completing a pane-to-watcher handoff. */
-export function declareRendererPtyDeliveryVisible(ptyId: string): void {
-  if (!hiddenClaimCounts.has(ptyId)) {
-    sendHiddenState(ptyId, false)
-  }
+let nextAttachmentKey = 1
+
+function ptyApi(): Window['api']['pty'] | undefined {
+  return typeof window === 'undefined' ? undefined : window.api?.pty
 }
 
-function removeVisibleClaim(claim: VisibilityClaim): boolean {
-  if (!claim.visible) {
-    return false
-  }
-  const currentCount = visibleClaimCounts.get(claim.ptyId) ?? 0
-  if (currentCount <= 1) {
-    visibleClaimCounts.delete(claim.ptyId)
-    return true
-  }
-  visibleClaimCounts.set(claim.ptyId, currentCount - 1)
-  return false
+function createLocalPtyAttachment(state: LocalPtyDeliveryState): LocalPtyAttachment {
+  return { key: String(nextAttachmentKey++), ...state, opened: false, closed: false }
 }
 
-/**
- * Reports one mounted transport's visibility. Ref-counting by owner prevents
- * a retiring pane from hiding a PTY after its replacement has already bound.
- */
-export function setRendererPtyVisibilityClaim(
-  owner: RendererPtyVisibilityClaimOwner,
-  ptyId: string,
-  visible: boolean
+/** The spawn request carries the record, so main holds it before the provider can emit. */
+function dispatchLocalPtyAttachment(
+  attachment: LocalPtyAttachment
+): ({ key: string } & LocalPtyDeliveryState) | undefined {
+  if (attachment.opened || attachment.closed) {
+    return undefined
+  }
+  attachment.opened = true
+  return { key: attachment.key, consuming: attachment.consuming, visible: attachment.visible }
+}
+
+/** A known-id attach has no spawn request, so it opens its record bound to that id. */
+function openLocalPtyAttachment(attachment: LocalPtyAttachment, ptyId: string): void {
+  if (attachment.opened || attachment.closed) {
+    return
+  }
+  attachment.opened = true
+  const { consuming, visible } = attachment
+  ptyApi()?.openRendererAttachment?.(attachment.key, ptyId, { consuming, visible })
+}
+
+/** `announce` re-sends an unchanged consuming state: a new restore handler must pull outstanding loss. */
+function updateLocalPtyAttachment(
+  attachment: LocalPtyAttachment,
+  state: Partial<LocalPtyDeliveryState>,
+  announce = false
 ): void {
-  const previous = visibilityClaimsByOwner.get(owner)
-  if (previous?.ptyId === ptyId && previous.visible === visible) {
+  const changed: Partial<LocalPtyDeliveryState> = {}
+  if (state.consuming !== undefined && (announce || state.consuming !== attachment.consuming)) {
+    changed.consuming = state.consuming
+  }
+  if (state.visible !== undefined && state.visible !== attachment.visible) {
+    changed.visible = state.visible
+  }
+  Object.assign(attachment, state)
+  if (!attachment.opened || attachment.closed || Object.keys(changed).length === 0) {
     return
   }
-
-  if (previous) {
-    const becameHidden = removeVisibleClaim(previous)
-    if (becameHidden && previous.ptyId !== ptyId) {
-      sendVisibility(previous.ptyId, false)
-    }
+  if (changed.consuming !== undefined) {
+    recordTerminalFreezeBreadcrumb(
+      changed.consuming ? 'renderer-gate-unmark' : 'renderer-gate-mark',
+      { attachment: attachment.key }
+    )
   }
+  ptyApi()?.updateRendererAttachment?.(attachment.key, changed)
+}
 
-  visibilityClaimsByOwner.set(owner, { ptyId, visible })
-  if (visible) {
-    const nextCount = (visibleClaimCounts.get(ptyId) ?? 0) + 1
-    visibleClaimCounts.set(ptyId, nextCount)
-    if (nextCount === 1) {
-      sendVisibility(ptyId, true)
-    }
+function closeLocalPtyAttachment(attachment: LocalPtyAttachment | null): void {
+  if (!attachment || attachment.closed) {
     return
   }
-
-  if (!visibleClaimCounts.has(ptyId)) {
-    sendVisibility(ptyId, false)
+  attachment.closed = true
+  if (attachment.opened) {
+    ptyApi()?.closeRendererAttachment?.(attachment.key)
   }
 }
 
-export function releaseRendererPtyVisibilityClaim(owner: RendererPtyVisibilityClaimOwner): void {
-  const previous = visibilityClaimsByOwner.get(owner)
-  if (!previous) {
-    return
-  }
-  visibilityClaimsByOwner.delete(owner)
-  if (removeVisibleClaim(previous)) {
-    sendVisibility(previous.ptyId, false)
-  }
-}
+/**
+ * One transport's attachments: at most one per connection generation. `pending`
+ * is the in-flight connect's; `bound` belongs to the id the transport delivers.
+ * Both live only while an old id still consumes and its replacement is pending.
+ */
+export function createLocalPtyAttachmentLifecycle() {
+  let pending: LocalPtyAttachment | null = null
+  let bound: LocalPtyAttachment | null = null
+  const desired: LocalPtyDeliveryState = { consuming: true, visible: false }
 
-/** Test seam: renderer reload naturally clears these module-scoped claims. */
-export function _resetPtyRendererDeliveryClaimsForTest(): void {
-  hiddenClaimCounts.clear()
-  visibilityClaimsByOwner.clear()
-  visibleClaimCounts.clear()
+  return {
+    /** A new connect or attach generation supersedes the previous in-flight attempt. */
+    begin(state: LocalPtyDeliveryState = desired): LocalPtyAttachment {
+      closeLocalPtyAttachment(pending)
+      pending = createLocalPtyAttachment(state)
+      return pending
+    },
+    /** The transport now delivers this generation's id; the old id's handler stops consuming. */
+    bind(): void {
+      if (pending) {
+        closeLocalPtyAttachment(bound)
+        bound = pending
+        pending = null
+      }
+    },
+    /** The session rejected the bound result; a newer in-flight attempt keeps its own record. */
+    abandonBound(): void {
+      closeLocalPtyAttachment(bound)
+      bound = null
+    },
+    /** Exit, disconnect, detach or destroy: this transport consumes nothing. */
+    release(): void {
+      closeLocalPtyAttachment(bound)
+      closeLocalPtyAttachment(pending)
+      bound = null
+      pending = null
+    },
+    /** A connect or attach finished: an attempt it never bound ends here, whatever the outcome. */
+    finish(attachment: LocalPtyAttachment, attachedPtyId?: string): void {
+      if (pending === attachment) {
+        closeLocalPtyAttachment(attachment)
+        pending = null
+      } else if (bound === attachment && attachedPtyId) {
+        openLocalPtyAttachment(attachment, attachedPtyId)
+      }
+    },
+    /** Spawn dispatch: only the generation's own live attempt opens a record. */
+    dispatch(attachment: LocalPtyAttachment) {
+      return pending === attachment ? dispatchLocalPtyAttachment(attachment) : undefined
+    },
+    setDesired(state: Partial<LocalPtyDeliveryState>, announce = false): void {
+      Object.assign(desired, state)
+      for (const attachment of [bound, pending]) {
+        if (attachment) {
+          updateLocalPtyAttachment(attachment, state, announce)
+        }
+      }
+    }
+  }
 }

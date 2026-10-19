@@ -174,10 +174,9 @@ export type PtyTransport = {
     cols?: number
     rows?: number
     sessionId?: string
-    /** Hidden-at-spawn declaration (terminal-query-authority.md): no visible
-     *  view will consume this PTY's bytes, so main marks it hidden BEFORE the
-     *  first byte and the gate + model responder own spawn-time queries.
-     *  Ignored by remote-runtime transports (not gate-markable). */
+    /** No visible view will consume this PTY's bytes, so the local connect
+     *  opens its record as not consuming and main owns spawn-time queries.
+     *  Ignored by remote-runtime transports. */
     initiallyHidden?: boolean
     /** Sent only when this connect resumes an agent, and only to hosts that accept it. */
     resumeSpawnIntent?: RestoreSpawnIntent
@@ -260,6 +259,14 @@ export type PtyTransport = {
    *  model-restore marker reports dropped bytes — a carry spanning the gap
    *  would corrupt the next live chunk. IPC transports only. */
   resetCrossChunkParserState?: () => void
+  /** Local transports only: this pane's delivery facts for its connection records in main.
+   *  `announce` re-sends consumption so a newly registered restore handler can pull lost output. */
+  setLocalPtyDelivery?: (
+    state: { consuming?: boolean; visible?: boolean },
+    announce?: boolean
+  ) => void
+  /** Local transports only: the session rejected this id's result, so its record ends. */
+  abandonLocalPtyAttachment?: (ptyId: string) => void
   serializeBuffer?: (
     opts?: RemoteRuntimeSnapshotRequestOptions
   ) => Promise<PtyBufferSnapshot | null>

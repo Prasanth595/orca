@@ -39,6 +39,7 @@ export type MockTransport = {
   sendInputAccepted?: ReturnType<typeof vi.fn>
   claimViewport: ReturnType<typeof vi.fn>
   setOutputPaused?: ReturnType<typeof vi.fn>
+  setLocalPtyDelivery?: ReturnType<typeof vi.fn>
   resize: ReturnType<typeof vi.fn>
   getPtyId: ReturnType<typeof vi.fn>
   getConnectionId: ReturnType<typeof vi.fn>
@@ -48,6 +49,7 @@ export type MockTransport = {
 
 export function createMockTransport(initialPtyId: string | null = null): MockTransport {
   let ptyId = initialPtyId
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: test-only mock covering the transport members the connection code under test calls.
   const transport = {
     attach: vi.fn(({ existingPtyId }: { existingPtyId: string }) => {
       ptyId = existingPtyId
@@ -67,6 +69,7 @@ export function createMockTransport(initialPtyId: string | null = null): MockTra
     resize: vi.fn(() => true),
     getPtyId: vi.fn(() => ptyId),
     getConnectionId: vi.fn(() => null),
+    setLocalPtyDelivery: vi.fn(),
     serializeBuffer: undefined
   } as MockTransport
   const sendInput = transport.sendInput as unknown as (data: string) => boolean

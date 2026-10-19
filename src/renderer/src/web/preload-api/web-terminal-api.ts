@@ -32,8 +32,9 @@ export function createPtyApi(): NonNullable<Partial<PreloadApi>['pty']> {
     getPtyDataListenerCount: () => 0,
     rendererDispatcherReady: () => {},
     setActiveRendererPty: () => {},
-    setRendererPtyVisible: () => {},
-    setHiddenRendererPty: () => {},
+    openRendererAttachment: () => {},
+    updateRendererAttachment: () => {},
+    closeRendererAttachment: () => {},
     setPtyDeliveryInterest: () => {},
     // Why: remote-runtime PTYs are never hidden-gate markable, so there's no main-side responder to feed.
     publishTerminalViewAttributes: () => {},

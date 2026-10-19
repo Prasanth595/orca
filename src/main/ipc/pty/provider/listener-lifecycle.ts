@@ -12,10 +12,6 @@ export let didFinishLoadHandler: (() => void) | null = null
 export let didFinishLoadWebContents: PtyRendererDelivery['webContents'] | null = null
 export let rendererLifecycleResetWebContents: PtyRendererDelivery['webContents'] | null = null
 export let rendererLifecycleResetHandler: (() => void) | null = null
-// Why: the hidden-delivery gate registries mirror renderer state; a reload/crash destroys owners without unregistering, so they reset when the renderer is replaced (drop memory preserved).
-export let rendererGateResetLoadHandler: (() => void) | null = null
-export let rendererGateResetGoneHandler: (() => void) | null = null
-export let rendererGateResetWebContents: PtyRendererDelivery['webContents'] | null = null
 // Why: the backgrounded-delivery dedupe map lives in the registerPtyHandlers closure but teardown funnels through module-scope clearProviderPtyState.
 // Why null-init + wrapper fn: see delivery/debug.ts — rolldown const-folds `export let fn = noop` bridges (STA-5661).
 let clearBackgroundedDeliverySyncForPtyImpl: ((id: string) => void) | null = null
@@ -81,16 +77,6 @@ export function setRendererLifecycleResetState(args: {
   rendererLifecycleResetWebContents = args.contents
   rendererLifecycleResetHandler = args.handler
   rendererDidStartNavigationHandler = args.navigation
-}
-
-export function setRendererGateResetState(args: {
-  contents: PtyRendererDelivery['webContents'] | null
-  load: (() => void) | null
-  gone: (() => void) | null
-}): void {
-  rendererGateResetWebContents = args.contents
-  rendererGateResetLoadHandler = args.load
-  rendererGateResetGoneHandler = args.gone
 }
 
 // Why: Restart daemon must detach listeners AFTER synthetic pty:exit events fan out but BEFORE replaceDaemonProvider swaps the adapter; this export narrows that window to the caller.

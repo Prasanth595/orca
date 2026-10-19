@@ -1,11 +1,7 @@
 import { recordDaemonStreamBacklogEvent } from '../../../daemon/daemon-stream-backlog-probe'
-import { isRuntimeOwnedHiddenRendererPty } from '../../pty-hidden-delivery-gate'
-import { tryGetProviderForPty } from '../provider/registry'
-import {
-  PRODUCER_FLOW_CONTROL_ENABLED,
-  rendererVisibilityKnownPtys,
-  visibleRendererPtys
-} from './visibility-state'
+import { hasLocalRendererConsumer } from '../../pty-hidden-delivery-gate'
+import { closeStartupQueryAuthorityForPty, tryGetProviderForPty } from '../provider/registry'
+import { hasLocalVisibleRendererView, PRODUCER_FLOW_CONTROL_ENABLED } from './visibility-state'
 import type { PtyIpcSession } from '../session'
 
 export function updateProducerFlowControl(session: PtyIpcSession, id: string): void {
@@ -20,12 +16,9 @@ export function syncPtyBackgroundedDelivery(
   id: string,
   caller: string
 ): void {
-  // Why runtime-owned: a runtime background spawn has no pane to report visibility, but must pace
-  // like a renderer hidden-at-spawn PTY; any visible report still wins.
-  const knownHidden =
-    session.rendererPtyIsKnownHidden(id) ||
-    (isRuntimeOwnedHiddenRendererPty(id) && !visibleRendererPtys.has(id))
-  const background = knownHidden && !(session.runtime?.hasRawTerminalViewSubscriber?.(id) ?? false)
+  // Why: no local view on screen paces the producer unless a raw remote viewer still watches it.
+  const visible = hasLocalVisibleRendererView(id)
+  const background = !visible && !(session.runtime?.hasRawTerminalViewSubscriber?.(id) ?? false)
   if (session.backgroundedDeliverySyncByPty.get(id) === background) {
     return
   }
@@ -37,8 +30,7 @@ export function syncPtyBackgroundedDelivery(
     sessionIdSuffix: id.slice(-10),
     background,
     caller,
-    known: rendererVisibilityKnownPtys.has(id),
-    visible: visibleRendererPtys.has(id)
+    visible
   })
   const previous = session.backgroundedDeliverySyncByPty.get(id)
   session.backgroundedDeliverySyncByPty.set(id, background)
@@ -58,5 +50,16 @@ export function syncPtyBackgroundedDelivery(
 export function resyncBackgroundedDeliveriesAfterGateReset(session: PtyIpcSession): void {
   for (const id of session.backgroundedDeliverySyncByPty.keys()) {
     syncPtyBackgroundedDelivery(session, id, 'gate-reset')
+  }
+}
+
+/** Once the PTY routes by ownership: apply current pacing, and hand startup queries to main when no view consumes. */
+export function syncPtyDeliveryAfterRegistration(
+  deps: { syncPtyBackgroundedDelivery?: (id: string, caller: string) => void },
+  id: string
+): void {
+  deps.syncPtyBackgroundedDelivery?.(id, 'spawn')
+  if (!hasLocalRendererConsumer(id)) {
+    closeStartupQueryAuthorityForPty(id)
   }
 }

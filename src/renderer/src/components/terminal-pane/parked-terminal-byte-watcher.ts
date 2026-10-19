@@ -22,13 +22,11 @@ import {
 } from './parked-terminal-command-status'
 import { subscribeToPtyData } from './pty-data-sidecar-subscriptions'
 import { createPtyOutputProcessor } from './pty-output-processor'
-import { isRendererHiddenPtyDeliveryGateEnabled } from './terminal-hidden-delivery-gate'
 import {
   isMainTerminalSideEffectAuthorityForPty,
   registerTerminalSideEffectFactConsumer
 } from './terminal-side-effect-facts-handler'
 import { dispatchTerminalNotification } from './use-notification-dispatch'
-import { acquireHiddenRendererPtyDeliveryClaim } from './pty-renderer-delivery-claims'
 import { isRemoteRuntimePtyId } from '../../../../shared/remote-runtime-pty-id'
 
 // Why: keep the live path's BEL-vs-completion race window so notification behavior is identical whether a tab is parked or mounted.
@@ -212,9 +210,6 @@ export function startParkedTerminalByteWatcher(
       runtimeEnvironmentId: null
     })
   const factSideEffectAuthority = mainSideEffectAuthority || remoteRuntimePty
-  const hiddenDeliveryGateActive =
-    mainSideEffectAuthority &&
-    isRendererHiddenPtyDeliveryGateEnabled(useAppStore.getState().settings)
 
   // Why (byte-parser mode only): reuse the transport's output processor to keep exact live-path parsing semantics.
   // initialAgentTitle: an agent already working at park time still produces a working→idle transition.
@@ -265,11 +260,6 @@ export function startParkedTerminalByteWatcher(
       })
     : null
 
-  // Why: parked tabs are the canonical hidden view — mark the PTY gated so main stops renderer byte delivery.
-  const releaseHiddenDeliveryClaim = hiddenDeliveryGateActive
-    ? acquireHiddenRendererPtyDeliveryClaim(ptyId)
-    : null
-
   const processLiveData = (data: string): void => {
     if (!processor) {
       return
@@ -301,8 +291,6 @@ export function startParkedTerminalByteWatcher(
     // Why first: each park/reveal cycle owns a distinct processor gauge, and the store/IPC
     // teardown below must not be able to throw its way past the census drop.
     processor?.disposePendingSideEffectGauge()
-    // Why: unhide BEFORE the reveal remount registers pane handlers, so main resumes delivery and emits the restore marker the pane consumes.
-    releaseHiddenDeliveryClaim?.()
     unsubscribeByteParsers?.()
     unregisterFactConsumer?.()
     // Why: clears tracker/timer/detector state so the watcher can't fire after the revealed pane's live parsers take over.

@@ -8,8 +8,10 @@ import { clearMigrationUnsupportedPty } from '../../../agent-hooks/migration-uns
 import { clearNativeWindowsConptyPty } from '../../../runtime/terminal-model-query-authority'
 import {
   clearHiddenRendererPtyDeliveryState,
-  isHiddenRendererPty
+  hasLocalRendererConsumer,
+  hasRendererPtyDeliveryInterest
 } from '../../pty-hidden-delivery-gate'
+import { unbindRendererAttachmentsForPty } from '../delivery/renderer-attachments'
 import { agentSessionOwners } from '../pane/agent-session-owners'
 import { paneKeyPtyId, paneKeyTeardownListeners, ptyPaneKey } from '../pane/key-state'
 import { getPtyIdsForConnection, ptyIncarnationById, ptyOwnership } from './ownership-state'
@@ -21,9 +23,7 @@ import {
   invalidatePendingPtyDrainPriority,
   lastInputAtByPty,
   providerSnapshotRequiredPtys,
-  ptySizes,
-  rendererVisibilityKnownPtys,
-  visibleRendererPtys
+  ptySizes
 } from '../delivery/visibility-state'
 
 /**
@@ -53,10 +53,10 @@ export function clearProviderPtyState(
   lastInputAtByPty.delete(id)
   interactiveOutputCharsByPty.delete(id)
   const activeChanged = activeRendererPtys.delete(id)
-  visibleRendererPtys.delete(id)
-  rendererVisibilityKnownPtys.delete(id)
-  // Why: every teardown path funnels through here — hidden/interest gate bits must not outlive the PTY or a reused map entry could silently gate a new one.
-  const deliveryPolicyChanged = isHiddenRendererPty(id)
+  // Why: every teardown path funnels through here — consumer/interest claims must not outlive the PTY or a reused id could silently receive a dead view's bytes.
+  const deliveryPolicyChanged = hasLocalRendererConsumer(id) || hasRendererPtyDeliveryInterest(id)
+  // Why unbind, not delete: a dead-owner replacement re-binds the same request's claim.
+  unbindRendererAttachmentsForPty(id)
   clearHiddenRendererPtyDeliveryState(id)
   if (activeChanged) {
     invalidatePendingPtyDrainPriority(id, false)

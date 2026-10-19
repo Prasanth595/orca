@@ -116,9 +116,12 @@ export function createPtyIpcProviderFixtures(ctx: { mainWindow: unknown }) {
   }
 
   function installObservableDaemonTestProvider(): ObservableDaemonProviderDouble {
-    const spawn = vi.fn(async (options: { sessionId?: string }) => ({
-      id: options.sessionId ?? 'daemon-pty'
-    }))
+    const livePtyIds = new Set<string>()
+    const spawn = vi.fn(async (options: { sessionId?: string }) => {
+      const id = options.sessionId ?? 'daemon-pty'
+      livePtyIds.add(id)
+      return { id }
+    })
     const write = vi.fn()
     const pauseProducer = vi.fn()
     const resumeProducer = vi.fn()
@@ -130,6 +133,7 @@ export function createPtyIpcProviderFixtures(ctx: { mainWindow: unknown }) {
       | ((payload: { id: string; kind: 'dataGap'; droppedChars: number }) => void)
       | null = null
     const getBufferSnapshot = vi.fn()
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: This suite provider implements the PTY operations exercised by its registered handlers.
     setLocalPtyProvider({
       spawn,
       write,
@@ -166,6 +170,7 @@ export function createPtyIpcProviderFixtures(ctx: { mainWindow: unknown }) {
         return () => {}
       }),
       listProcesses: vi.fn(async () => []),
+      hasPty: (id: string) => livePtyIds.has(id),
       attach: vi.fn(),
       getDefaultShell: vi.fn(),
       getProfiles: vi.fn()
@@ -179,7 +184,10 @@ export function createPtyIpcProviderFixtures(ctx: { mainWindow: unknown }) {
       shutdown,
       getBufferSnapshot,
       emitData: (id: string, data: string) => dataHandler?.({ id, data }),
-      emitExit: (id: string, code = 0) => exitHandler?.({ id, code }),
+      emitExit: (id: string, code = 0) => {
+        livePtyIds.delete(id)
+        exitHandler?.({ id, code })
+      },
       emitDataGap: (id: string, droppedChars: number) =>
         backgroundStreamHandler?.({ id, kind: 'dataGap', droppedChars })
     }
