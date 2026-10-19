@@ -1,5 +1,6 @@
 import type { SmartTier } from './sidebar-list/sort-stamps'
 import type { AgentStatusState, AgentType, AgentWorkingMode } from './agent-status-types'
+import type { TuiAgent } from './tui-agent'
 import type { AgentMainAgentStatus } from './main-agent-status'
 import type { CheckStatus } from './github/pull-request-types'
 import type { AgentChildWorkView } from './agent-status-child-work-view'
@@ -97,6 +98,9 @@ export type RuntimeWorktreePsSummary = {
   comment: string
   isPinned: boolean
   isActive: boolean
+  /** The agent this worktree was created with, when known. Optional on the wire: old hosts
+   *  never send it; readers treat absent as unknown and fall back to the default agent. */
+  createdWithAgent?: TuiAgent
   unread: boolean
   liveTerminalCount: number
   hasAttachedPty: boolean
