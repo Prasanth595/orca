@@ -1,9 +1,24 @@
 import { translate } from '@/i18n/i18n'
 import { NATIVE_CHAT_TURN_STATUS_COPY } from '../../../../shared/native-chat-turn-status'
 import { isRemoteRuntimePtyId } from '@/runtime/runtime-terminal-inspection'
+import type { NativeChatComposerProps } from './native-chat-composer-types'
 
 export type NativeChatResolvedTarget = {
   ptyId: string
+}
+
+export function nativeChatComposerTargetKey(
+  paneKey: string,
+  targetPtyId: string | null,
+  transport: NativeChatComposerProps['structuredTransport']
+): string {
+  return JSON.stringify([
+    paneKey,
+    targetPtyId,
+    transport?.sessionId,
+    transport?.worktreeId,
+    transport?.runtimeEnvironmentId
+  ])
 }
 
 /** Upper bound for clipboard text pulled into the composer via Cmd/Ctrl+V, so a
