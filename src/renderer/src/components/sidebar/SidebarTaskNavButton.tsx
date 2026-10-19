@@ -12,7 +12,9 @@ import { PER_REPO_FETCH_LIMIT } from '@/lib/new-workspace'
 import { getLocalPreflightContext, localPreflightContextKey } from '@/lib/local-preflight-context'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store'
+import { usePluginTaskSources } from '@/store/plugin-task-sources'
 import { useRepoMap } from '@/store/selectors'
+import { resolvePluginPanelIcon } from '@/components/right-sidebar/plugin-panel-activity-items'
 import { translate } from '@/i18n/i18n'
 import { isGitRepoKind } from '../../../../shared/repo-kind'
 import { getTaskPresetQuery } from '../../../../shared/task-preset-query'
@@ -76,6 +78,7 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
   const prefetchWorkItems = useAppStore((s) => s.prefetchWorkItems)
   const activeRepoId = useAppStore((s) => s.activeRepoId)
   const defaultTaskViewPreset = useAppStore((s) => s.settings?.defaultTaskViewPreset ?? 'all')
+  const { sources: pluginTaskSources } = usePluginTaskSources()
   const preferredVisibleTaskProviders = React.useMemo(
     () => normalizeVisibleTaskProviders(rawVisibleTaskProviders),
     [rawVisibleTaskProviders]
@@ -228,6 +231,26 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
                 <JiraIcon className="size-3.5" />
               </TaskProviderShortcut>
             ) : null}
+            {pluginTaskSources.map((source) => {
+              const Icon = resolvePluginPanelIcon(source.icon)
+              return (
+                <TaskProviderShortcut
+                  key={source.key}
+                  label={translate(
+                    'auto.components.sidebar.SidebarNav.openPluginTaskSource',
+                    'Open {{value0}}',
+                    { value0: source.title }
+                  )}
+                  onOpen={() =>
+                    openTaskPage({
+                      pluginTaskSource: { pluginKey: source.pluginKey, sourceId: source.sourceId }
+                    })
+                  }
+                >
+                  <Icon className="size-3.5" aria-hidden />
+                </TaskProviderShortcut>
+              )
+            })}
           </span>
         </div>
       </ContextMenuTrigger>
