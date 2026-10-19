@@ -31,7 +31,7 @@ function alone(
   return { result, readConsole }
 }
 
-describe('isWindowsShellAloneInJob on a decision read', () => {
+describe('isWindowsShellAloneInJob for adoption', () => {
   it('sets aside a member that left both the shell tree and the console', async () => {
     await expect(alone(LAUNCHER, [...IDLE, SSH_AGENT]).result).resolves.toBe(true)
     await expect(alone(LAUNCHER, [...IDLE, SSH_AGENT, SLEEP]).result).resolves.toBe(false)

@@ -8,7 +8,7 @@ export type ChildProcessVerdictRead = PtyChildProcessVerdict | Promise<PtyChildP
 export type SubprocessHandle = {
   pid: number
   processNameIsSpawnFile?: boolean
-  inspectChildProcesses?(fresh?: boolean, decision?: boolean): ChildProcessVerdictRead
+  inspectChildProcesses?(fresh?: boolean, ignoreDetached?: boolean): ChildProcessVerdictRead
   /** Live foreground process name of the PTY (node-pty's `.process`), e.g.
    *  'claude' / 'codex' / 'zsh'. Null once the child has exited. */
   getForegroundProcess(options?: { rawFallback?: boolean }): string | null

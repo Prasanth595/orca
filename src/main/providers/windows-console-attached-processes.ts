@@ -33,8 +33,8 @@ function resolveNodePtyConsoleListAgent(): string {
  * one console at a time -- which is why node-pty answers it from a separate
  * process, and why this still forks.
  *
- * Only one-off decisions may use this: the agent candidate FILTER, and a
- * `scanChildProcesses` shell-alone read setting aside detached daemons. Both
+ * Only one-off decisions may use this: the agent candidate FILTER, and the
+ * adoption shell-alone read setting aside detached daemons. Both
  * drop a member which detached from the console (`Start-Process`, a GUI child,
  * a setsid'd `ssh-agent`), and the job object deliberately still contains
  * those, so the job cannot answer it -- see docs/windows-wsl-root-cause-plan.html, "Use B".

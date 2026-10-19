@@ -153,7 +153,7 @@ describeOnWindows("Git Bash launcher shell proof with Orca's real launch", () =>
     }
   }, 60_000)
 
-  it('sets aside a detached ssh-agent on a decision read, but not a background job', async () => {
+  it('sets aside a detached ssh-agent for adoption, but not a background job', async () => {
     const opts: PtySubprocessOptions = {
       sessionId: 'git-bash-detached-daemon-proof',
       cols: 120,
@@ -168,13 +168,15 @@ describeOnWindows("Git Bash launcher shell proof with Orca's real launch", () =>
     proc.onData((chunk) => {
       output += chunk
     })
-    const inspect = (decision: boolean) =>
-      inspectSpawnFileWindowsChildProcesses(proc, spawned.shellPath, true, decision)
+    let agentPid = 0
+    const inspect = (ignoreDetached: boolean) =>
+      inspectSpawnFileWindowsChildProcesses(proc, spawned.shellPath, true, ignoreDetached)
     try {
       await vi.waitFor(() => expect(output).toContain('$'), { timeout: 20_000 })
       // ssh-agent forks, setsids off the console, and its Win32 parent exits.
       proc.write('eval "$(ssh-agent -s)"; echo ORCA_AGENT_$SSH_AGENT_PID\r')
       await vi.waitFor(() => expect(output).toMatch(/ORCA_AGENT_\d+/), { timeout: 10_000 })
+      agentPid = Number(/ORCA_AGENT_(\d+)/.exec(output)?.[1])
       await vi.waitFor(async () => expect(await inspect(true)).toBe('no-children'), {
         timeout: 10_000
       })
@@ -186,7 +188,11 @@ describeOnWindows("Git Bash launcher shell proof with Orca's real launch", () =>
         timeout: 10_000
       })
     } finally {
-      proc.write('kill %1; ssh-agent -k\r')
+      // From inside the pane: SSH_AGENT_PID is an MSYS pid, and it outlives the pane otherwise.
+      if (agentPid) {
+        proc.write(`kill %1; kill ${agentPid}\r`)
+        await new Promise((resolve) => setTimeout(resolve, 500))
+      }
       proc.kill()
     }
   }, 60_000)

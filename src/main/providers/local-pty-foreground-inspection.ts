@@ -41,7 +41,7 @@ import { isWindowsPtyJobReadable, readWindowsPtyJobProcessIds } from './windows-
 export async function inspectLocalPtyChildProcesses(
   id: string,
   fresh = true,
-  decision = false
+  ignoreDetached = false
 ): Promise<PtyChildProcessVerdict> {
   const proc = ptyProcesses.get(id)
   if (!proc) {
@@ -56,7 +56,7 @@ export async function inspectLocalPtyChildProcesses(
         proc,
         ptyShellPath.get(id) ?? '',
         fresh,
-        decision
+        ignoreDetached
       )
       return ptyProcesses.get(id) === proc ? verdict : 'unverifiable'
     }

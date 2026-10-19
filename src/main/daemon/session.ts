@@ -247,8 +247,8 @@ export class Session {
     return this.output.getCwd()
   }
 
-  inspectChildProcesses(fresh?: boolean, decision?: boolean): ChildProcessVerdictRead {
-    return this.subprocess.inspectChildProcesses?.(fresh, decision) ?? 'unverifiable'
+  inspectChildProcesses(fresh?: boolean, ignoreDetached?: boolean): ChildProcessVerdictRead {
+    return this.subprocess.inspectChildProcesses?.(fresh, ignoreDetached) ?? 'unverifiable'
   }
 
   getForegroundProcess(options?: { rawFallback?: boolean }): string | null {

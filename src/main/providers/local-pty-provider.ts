@@ -167,7 +167,7 @@ export class LocalPtyProvider implements IPtyProvider {
     const childProcessEvidence = await inspectLocalPtyChildProcesses(
       id,
       options?.steadyState !== true,
-      options?.scanChildProcesses === true
+      options?.ignoreDetached === true
     )
     // Neither asynchronous inspection may publish a replacement pane's identity.
     if (ptyProcesses.get(id) !== proc || ptyIncarnations.get(id) !== incarnation) {

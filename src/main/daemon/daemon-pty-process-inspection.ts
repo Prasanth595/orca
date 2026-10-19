@@ -53,7 +53,7 @@ export abstract class DaemonPtyProcessInspection extends DaemonPtyBufferSnapshot
         : {}),
       // Additive: an older daemon ignores it and pays for the full capture.
       ...(options?.steadyState === true ? { steadyState: true } : {}),
-      ...(options?.scanChildProcesses === true ? { scanChildProcesses: true } : {})
+      ...(options?.ignoreDetached === true ? { ignoreDetached: true } : {})
     })
   }
 

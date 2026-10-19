@@ -117,7 +117,8 @@ export abstract class OrcaRuntimeWithStructuredSessionCliWriterHost extends Orca
             const provider = getProviderForPty(pane.ptyId)
             const inspection = await inspectPtyProviderProcess(provider, pane.ptyId, {
               expectedIncarnationId: pane.incarnationId,
-              scanChildProcesses: true
+              scanChildProcesses: true,
+              ignoreDetached: true
             })
             const evidence = inspection.foregroundProcessEvidence
             return (

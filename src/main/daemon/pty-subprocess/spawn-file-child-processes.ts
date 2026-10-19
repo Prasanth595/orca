@@ -55,8 +55,8 @@ export async function inspectSpawnFileWindowsChildProcesses(
   proc: IPty,
   shellPath: string,
   fresh = true,
-  /** A one-off decision may fork the console-list helper to set aside detached daemons. */
-  decision = false
+  /** Adoption only: may fork the console-list helper to set aside detached daemons. */
+  ignoreDetached = false
 ): Promise<PtyChildProcessVerdict> {
   try {
     const members = readWindowsPtyJobProcessIds(proc)
@@ -77,7 +77,7 @@ export async function inspectSpawnFileWindowsChildProcesses(
         }
         return rows
       },
-      decision ? () => readWindowsConsoleAttachedProcessIds(shellPid) : undefined
+      ignoreDetached ? () => readWindowsConsoleAttachedProcessIds(shellPid) : undefined
     )
     return alone ? 'no-children' : 'children'
   } catch {
