@@ -96,6 +96,33 @@ describe('useMobileSessionViewMode', () => {
     expect(controller?.isTabChatView('t1')).toBe(true)
   })
 
+  it('withholds the initial surface until both the default and this workspace overrides settle', async () => {
+    const defaultRead = deferred<MobileSessionView>()
+    const overridesRead = deferred<{ overrides: Map<string, MobileSessionView>; loaded: boolean }>()
+    vi.mocked(loadDefaultSessionView).mockReturnValue(defaultRead.promise)
+    vi.mocked(readSessionViewOverridesPreference).mockReturnValue(overridesRead.promise)
+    function Harness(): null {
+      controller = useMobileSessionViewMode({ hostId: 'h', worktreeId: 'w' })
+      return null
+    }
+    act(() => {
+      renderer = create(createElement(Harness))
+    })
+    expect(controller?.ready).toBe(false)
+    await act(async () => {
+      defaultRead.resolve('chat')
+      await defaultRead.promise
+    })
+    expect(controller?.ready).toBe(false)
+    await act(async () => {
+      overridesRead.resolve({ overrides: new Map([['t1', 'terminal']]), loaded: true })
+      await overridesRead.promise
+    })
+    expect(controller?.ready).toBe(true)
+    expect(controller?.isTabChatView('t1')).toBe(false)
+    expect(controller?.isTabChatView('t2')).toBe(true)
+  })
+
   it('lets a per-tab override win over the default', async () => {
     await mount({
       defaultView: 'chat',
@@ -163,17 +190,22 @@ describe('useMobileSessionViewMode', () => {
       await Promise.resolve()
     })
     expect(controller?.isTabChatView('same-tab-id')).toBe(true)
+    expect(controller?.ready).toBe(true)
 
     await act(async () => {
       renderer?.update(createElement(Harness, { hostId: 'h2', worktreeId: 'w2' }))
       await Promise.resolve()
     })
     expect(controller?.isTabChatView('same-tab-id')).toBe(false)
+    // The next workspace's surface waits for its own overrides, not the last one's.
+    expect(controller?.ready).toBe(false)
 
     await act(async () => {
       nextScopeLoad.resolve(new Map())
       await Promise.resolve()
+      await Promise.resolve()
     })
+    expect(controller?.ready).toBe(true)
   })
 
   it('merges an explicit terminal choice made during load with the other persisted overrides', async () => {
