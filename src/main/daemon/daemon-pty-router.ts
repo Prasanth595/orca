@@ -222,11 +222,7 @@ export class DaemonPtyRouter implements IPtyProvider {
 
   async inspectProcess(
     id: string,
-    options?: {
-      expectedIncarnationId?: string
-      steadyState?: boolean
-      scanChildProcesses?: boolean
-    }
+    options?: Parameters<DaemonPtyAdapter['inspectProcess']>[1]
   ): Promise<PtyProcessInspection> {
     return this.adapterForInspection(id).inspectProcess(id, options)
   }

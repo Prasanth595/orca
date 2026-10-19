@@ -1,4 +1,5 @@
 import type { Session } from './session'
+import type { PtyProcessInspectionOptions } from '../providers/pty-process-inspection'
 import { SessionNotFoundError } from './types'
 import type { SessionInfo, TakePendingOutputResult, TerminalSnapshot } from './types'
 import type { CreateOrAttachResult } from './terminal-host-create-contract'
@@ -228,11 +229,7 @@ export class TerminalHost {
 
   inspectProcess(
     sessionId: string,
-    options?: {
-      expectedIncarnationId?: string
-      steadyState?: boolean
-      scanChildProcesses?: boolean
-    }
+    options?: PtyProcessInspectionOptions
   ): ReturnType<typeof inspectTerminalHostProcess> {
     pruneRetiredPtyIncarnations(this.retiredIncarnations)
     const session = this.sessions.get(sessionId)
