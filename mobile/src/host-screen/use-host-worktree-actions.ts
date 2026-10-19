@@ -28,6 +28,7 @@ import {
   worktreeSleep
 } from './host-screen-operations'
 import type { HostScreenState } from './use-host-screen-state'
+import { useHostWorktreeRename } from './use-host-worktree-rename'
 
 export function useHostWorktreeActions(args: {
   client: RpcClient | null
@@ -76,6 +77,8 @@ export function useHostWorktreeActions(args: {
     (item: Worktree) => client && rpcClientForExecutionHost(client, hostCapabilities, item.hostId),
     [client, hostCapabilities]
   )
+
+  const renameWorktree = useHostWorktreeRename({ clientForRow, fetchWorktrees, state })
 
   const leaveHost = useCallback(() => {
     leaveHostRoute(router)
@@ -306,6 +309,7 @@ export function useHostWorktreeActions(args: {
     openWorktreeSession,
     setShowNewWorktreeVisible,
     putWorktreeToSleep,
+    renameWorktree,
     togglePin
   }
 }
